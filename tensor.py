@@ -120,6 +120,9 @@ class Tensor(TensorBase):
     def __bool__(self):
         return bool(self.data.size)
 
+    def __len__(self):
+        return self.shape[0]
+
     def __add__(self, other):
         return add(self,other)
     def __radd__(self, other):
@@ -212,6 +215,13 @@ class Tensor(TensorBase):
 
     def log_softmax(self, dim=1, deoverflow=True):
         return log_softmax(self, dim, deoverflow)
+
+
+    def reshape(self,newshape):
+        return reshape(self,newshape)
+
+    def swapaxes(self,axis1,axis2):
+        return swapaxes(self,axis1,axis2)
 
 
 def SilceBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
@@ -825,4 +835,34 @@ def exp(t: 'Tensor') -> 'Tensor':
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
+
+def ReshapeBackward(grad: 'Tensor', t: 'Tensor', args:list) -> 'Tensor':
+    original_shape = t.shape
+    return Tensor(grad.data.reshape(original_shape))
+
+def reshape(t: 'Tensor', newshape):
+    data = t.data.reshape(newshape)
+    requires_grad = t.requires_grad
+    grad_fn = ReshapeBackward
+    depends_on = []
+    if requires_grad:
+        depends_on.append(Edge(t, []))
+
+    return Tensor(data, requires_grad, depends_on, grad_fn)
+
+
+def SwapaxesBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+    axis1, axis2 = args
+    return Tensor(np.swapaxes(grad.data, axis2, axis1))
+
+
+def swapaxes(t: 'Tensor', axis1, axis2):
+    data = np.swapaxes(t.data, axis1, axis2)
+    requires_grad = t.requires_grad
+    grad_fn = SwapaxesBackward
+    depends_on = []
+    if requires_grad:
+        depends_on.append(Edge(t, [axis1, axis2]))
+
+    return Tensor(data, requires_grad, depends_on, grad_fn)
 
