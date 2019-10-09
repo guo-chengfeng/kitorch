@@ -5,7 +5,7 @@ import numpy as np
 class Edge(NamedTuple):
     tensor: 'Tensor'
     args: List
-    name: Optional[str] = None
+
 
 Array = Union[float, int, np.ndarray]
 array_type = (float, int, np.ndarray)
@@ -55,7 +55,7 @@ class Tensor(TensorBase):
                  grad_fn: Callable = None,
                  name: Optional[str] = None,
                  is_leaf: bool = False,
-                 is_simple:bool = True
+                 is_simple: bool = True
                  ) -> None:
         super().__init__(requires_grad)
         self.data = ensure_array(data)
@@ -105,7 +105,6 @@ class Tensor(TensorBase):
 
         self.grad.data += grad.data
 
-
         if self.is_simple:
             for edge in self.depends_on:
                 tensor = edge.tensor
@@ -124,36 +123,37 @@ class Tensor(TensorBase):
         return self.shape[0]
 
     def __add__(self, other):
-        return add(self,other)
+        return add(self, other)
+
     def __radd__(self, other):
-        return add(other,self)
+        return add(other, self)
 
     def __sub__(self, other):
-        return sub(self,other)
+        return sub(self, other)
 
     def __rsub__(self, other):
-        return sub(other,self)
+        return sub(other, self)
 
     def __neg__(self):
-        return _sub_array_tensor(0,self)
+        return _sub_array_tensor(0, self)
 
     def __mul__(self, other):
-        return mul(self,other)
+        return mul(self, other)
 
     def __rmul__(self, other):
-        return mul(other,self)
+        return mul(other, self)
 
     def __truediv__(self, other):
-        return divide(self,other)
+        return divide(self, other)
 
     def __rtruediv__(self, other):
-        return divide(other,self)
+        return divide(other, self)
 
     def __matmul__(self, other):
-        return matmul(self,other)
+        return matmul(self, other)
 
     def __rmatmul__(self, other):
-        return matmul(other,self)
+        return matmul(other, self)
 
     def __pow__(self, pow):
         return power(self, pow)
@@ -178,16 +178,17 @@ class Tensor(TensorBase):
                       grad_fn=self.grad_fn,
                       name=self.name,
                       is_leaf=self.is_leaf,
-                      is_simple = self.is_simple)
+                      is_simple=self.is_simple)
+
     # 两个约并函数
-    def sum(self,axis=None, keepdims=False) -> 'Tensor':
-        return sum(self,axis=axis, keepdims=keepdims)
+    def sum(self, axis=None, keepdims=False) -> 'Tensor':
+        return sum(self, axis=axis, keepdims=keepdims)
 
-    def mean(self,axis=None, keepdims=False) -> 'Tensor':
-        return mean(self,axis=axis, keepdims=keepdims)
+    def mean(self, axis=None, keepdims=False) -> 'Tensor':
+        return mean(self, axis=axis, keepdims=keepdims)
 
-    def norm(self,order=2,reduction="sum"):
-        return norm(self,order=order,reduction=reduction)
+    def norm(self, order=2, reduction="sum"):
+        return norm(self, order=order, reduction=reduction)
 
     # 常用数学操作
     def log(self):
@@ -199,8 +200,7 @@ class Tensor(TensorBase):
     def __abs__(self):
         return abs(self)
 
-
-    #5个激活函数
+    # 5个激活函数
     def sigmoid(self):
         return sigmoid(self)
 
@@ -216,15 +216,14 @@ class Tensor(TensorBase):
     def log_softmax(self, dim=1, deoverflow=True):
         return log_softmax(self, dim, deoverflow)
 
+    def reshape(self, newshape):
+        return reshape(self, newshape)
 
-    def reshape(self,newshape):
-        return reshape(self,newshape)
-
-    def swapaxes(self,axis1,axis2):
-        return swapaxes(self,axis1,axis2)
+    def swapaxes(self, axis1, axis2):
+        return swapaxes(self, axis1, axis2)
 
 
-def SilceBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+def SilceBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     grad_data = np.zeros_like(t.data)
     grad_data[args[0]] = grad.data
     return Tensor(grad_data)
@@ -241,12 +240,12 @@ def slice(t: Tensor, idxs) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-
 def LogSoftmaxBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     dim, data = args
     _sum = np.sum(grad.data, axis=dim, keepdims=True)
     grad_data = grad.data - data * _sum
     return Tensor(grad_data)
+
 
 def log_softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
     assert len(t.shape) <= 2, "Except N-D Tensor(N<=2), but get %s-D" % len(t.shape)
@@ -268,7 +267,7 @@ def log_softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
 
 
 def SoftmaxBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    dim,data = args
+    dim, data = args
     _sum = (grad.data * data).sum(axis=dim, keepdims=True)
     grad_data = data * (grad.data - _sum)
     return Tensor(grad_data)
@@ -292,10 +291,12 @@ def softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
+
 def TanhBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     data = args[0]
     grad_data = grad.data * (1 - data * data)
     return Tensor(grad_data)
+
 
 def tanh(t: 'Tensor') -> 'Tensor':
     data = np.tanh(t.data)
@@ -313,6 +314,7 @@ def SigmoidBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     grad_data = grad.data * data * (1 - data)
     return Tensor(grad_data)
 
+
 def sigmoid(t: 'Tensor') -> 'Tensor':
     data = 1 / (1 + np.exp(-t.data))
     requires_grad = t.requires_grad
@@ -322,6 +324,7 @@ def sigmoid(t: 'Tensor') -> 'Tensor':
         depends_on.append(Edge(t, [data]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
+
 
 def ReluBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     data = args[0]
@@ -343,16 +346,7 @@ def relu(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-
-
-
-
-
-
-
-
-
-def SumBackWard(grad: 'Tensor', var:'Tensor',args: List) -> 'Tensor':
+def SumBackWard(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     axis, keepdims = args
 
     shape = grad.shape
@@ -382,14 +376,14 @@ def sum(var: Tensor, axis=None, keepdims=False) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def MeanBackWard(grad: 'Tensor', var:'Tensor',args: List) -> 'Tensor':
+def MeanBackWard(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     axis, keepdims = args
     shape = grad.shape
     if shape == () or shape == (1,):
         return Tensor(grad.data / var.size * np.ones_like(var.data))
 
     num_unit = 1
-    if isinstance(axis,int):
+    if isinstance(axis, int):
         num_unit = var.shape[axis]
     elif axis is None:
         num_unit = var.size
@@ -439,18 +433,18 @@ def reduce_grad(grad_data: np.ndarray, res_shape: tuple, var_shape: tuple) -> np
     return grad_data
 
 
-def AddBackward(grad: 'Tensor', var:'Tensor',args:List) -> 'Tensor':
+def AddBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     grad_data = grad.data * np.ones(grad.shape)
     res_shape = grad.shape
     var_shape = var.shape
 
     if res_shape == var_shape:
-        return  Tensor(grad_data)
+        return Tensor(grad_data)
     else:
-        return  Tensor(reduce_grad(grad_data, res_shape, var_shape))
+        return Tensor(reduce_grad(grad_data, res_shape, var_shape))
 
 
-def _add_array_tensor(lhs: Array,rhs: 'Tensor') -> 'Tensor':
+def _add_array_tensor(lhs: Array, rhs: 'Tensor') -> 'Tensor':
     data = lhs + rhs.data
     requires_grad = rhs.requires_grad
     depends_on = []
@@ -480,7 +474,7 @@ def add(lhs: FIAT, rhs: FIAT):
         if isinstance(rhs, Tensor):
             return _add_tensor_tensor(lhs, rhs)
         elif isinstance(rhs, array_type):
-            return _add_array_tensor(rhs,lhs)
+            return _add_array_tensor(rhs, lhs)
         else:
             raise TypeError("add: rhs must be a Tensor, float, int or ndarray, but got %s" % type(rhs))
 
@@ -493,8 +487,8 @@ def add(lhs: FIAT, rhs: FIAT):
         raise TypeError("add: unsupported operand type(s) for %s + %s " % (type(lhs), type(rhs)))
 
 
-def SubBackward(grad: 'Tensor', var:'Tensor',args:List) -> 'Tensor':
-    is_right = True if  args[0] == 'right' else False
+def SubBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
+    is_right = True if args[0] == 'right' else False
     grad_data = grad.data * np.ones(grad.shape)
     if is_right:
         grad_data *= -1
@@ -503,11 +497,12 @@ def SubBackward(grad: 'Tensor', var:'Tensor',args:List) -> 'Tensor':
     var_shape = var.shape
 
     if res_shape == var_shape:
-        return  Tensor(grad_data)
+        return Tensor(grad_data)
     else:
-        return  Tensor(reduce_grad(grad_data, res_shape, var_shape))
+        return Tensor(reduce_grad(grad_data, res_shape, var_shape))
 
-def _sub_array_tensor(lhs: Array,rhs: 'Tensor',) -> 'Tensor':
+
+def _sub_array_tensor(lhs: Array, rhs: 'Tensor', ) -> 'Tensor':
     data = lhs - rhs.data
     requires_grad = rhs.requires_grad
     depends_on = []
@@ -516,6 +511,7 @@ def _sub_array_tensor(lhs: Array,rhs: 'Tensor',) -> 'Tensor':
         depends_on.append(Edge(rhs, ['right']))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
+
 
 def _sub_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
     data = lhs.data - rhs.data
@@ -530,6 +526,7 @@ def _sub_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
+
 def sub(lhs: FIAT, rhs: FIAT):
     if isinstance(lhs, Tensor):
         if isinstance(rhs, Tensor):
@@ -541,7 +538,7 @@ def sub(lhs: FIAT, rhs: FIAT):
 
     elif isinstance(lhs, array_type):
         if isinstance(rhs, Tensor):
-            return _sub_array_tensor(lhs,rhs)
+            return _sub_array_tensor(lhs, rhs)
         else:
             raise TypeError("sub: if lhs is a float, int or ndarray, rhs must be a Tensor, but got %s" % type(rhs))
     else:
@@ -562,7 +559,7 @@ def _mul_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def _mul_array_tensor(lhs:Scalar , rhs: 'Tensor') -> 'Tensor':
+def _mul_array_tensor(lhs: Scalar, rhs: 'Tensor') -> 'Tensor':
     data = lhs * rhs.data
     requires_grad = rhs.requires_grad
     depends_on = []
@@ -572,27 +569,30 @@ def _mul_array_tensor(lhs:Scalar , rhs: 'Tensor') -> 'Tensor':
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
+
 def mul(lhs: FIAT, rhs: FIAT):
     if isinstance(lhs, Tensor):
         if isinstance(rhs, Tensor):
             return _mul_tensor_tensor(lhs, rhs)
         elif isinstance(rhs, array_type):
-            return _mul_array_tensor(rhs,lhs)
+            return _mul_array_tensor(rhs, lhs)
         else:
             raise TypeError("mul: rhs must be a Tensor, float, int or ndarray, but got %s" % type(rhs))
 
     elif isinstance(lhs, array_type):
         if isinstance(rhs, Tensor):
-            return _mul_array_tensor(lhs,rhs)
+            return _mul_array_tensor(lhs, rhs)
         else:
             raise TypeError("mul: if lhs is a float, int or ndarray, rhs must be a Tensor, but got %s" % type(rhs))
     else:
         raise TypeError("mul: unsupported operand type(s) for %s * %s " % (type(lhs), type(rhs)))
 
+
 # alias of mul func
 multiply = mul
 
-def MulBackward(grad: 'Tensor', var:'Tensor',args:List) -> 'Tensor':
+
+def MulBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     data = args[0]
     grad_data = grad.data * data
 
@@ -600,9 +600,9 @@ def MulBackward(grad: 'Tensor', var:'Tensor',args:List) -> 'Tensor':
     var_shape = var.shape
 
     if res_shape == var_shape:
-        return  Tensor(grad_data)
+        return Tensor(grad_data)
     else:
-        return  Tensor(reduce_grad(grad_data, res_shape, var_shape))
+        return Tensor(reduce_grad(grad_data, res_shape, var_shape))
 
 
 def _divide_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
@@ -614,43 +614,45 @@ def _divide_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
         depends_on.append(Edge(lhs, ['left', rhs.data]))
 
     if rhs.requires_grad:
-        depends_on.append(Edge(rhs, ['right',lhs.data]))
+        depends_on.append(Edge(rhs, ['right', lhs.data]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def _divide_array_tensor(lhs: Scalar, rhs: 'Tensor',) -> 'Tensor':
+def _divide_array_tensor(lhs: Scalar, rhs: 'Tensor', ) -> 'Tensor':
     data = lhs / rhs.data
     requires_grad = rhs.requires_grad
     depends_on = []
     grad_fn = DivideBackward
     if rhs.requires_grad:
-        depends_on.append(Edge(rhs, ['right',lhs]))
+        depends_on.append(Edge(rhs, ['right', lhs]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
+
 
 def divide(lhs: FIAT, rhs: FIAT):
     if isinstance(lhs, Tensor):
         if isinstance(rhs, Tensor):
             return _divide_tensor_tensor(lhs, rhs)
         elif isinstance(rhs, array_type):
-            return _mul_array_tensor(1/rhs, lhs)
+            return _mul_array_tensor(1 / rhs, lhs)
         else:
             raise TypeError("divide: rhs must be a Tensor, float, int or ndarray, but got %s" % type(rhs))
 
     elif isinstance(lhs, array_type):
         if isinstance(rhs, Tensor):
-            return _divide_array_tensor(lhs,rhs)
+            return _divide_array_tensor(lhs, rhs)
         else:
             raise TypeError("divide: if lhs is a float, int or ndarray, rhs must be a Tensor, but got %s" % type(rhs))
     else:
         raise TypeError("divide: unsupported operand type(s) for %s / %s " % (type(lhs), type(rhs)))
 
+
 def DivideBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     is_right = True if args[0] == 'right' else False
     if is_right:
         #  - 1/x^2
-        grad_data = -grad.data * args[1] / (var.data**2)
+        grad_data = -grad.data * args[1] / (var.data ** 2)
     else:
         grad_data = grad.data / args[1]
 
@@ -658,29 +660,27 @@ def DivideBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
     var_shape = var.shape
 
     if res_shape == var_shape:
-        return  Tensor(grad_data)
+        return Tensor(grad_data)
     else:
-        return  Tensor(reduce_grad(grad_data, res_shape, var_shape))
+        return Tensor(reduce_grad(grad_data, res_shape, var_shape))
 
-def _matmul_tensor_tensor(lhs:'Tensor',rhs:'Tensor')->'Tensor':
-    # 矩阵必须是大于等于二维的数据，当然也可以直接处理一维的数据，
-    # 但是一维数据既可以是一个列向量，也可以是个行向量，处理起来繁琐
-    # 如果处理一维数据，用户必须增加一个维度信息
+
+def _matmul_tensor_tensor(lhs: 'Tensor', rhs: 'Tensor') -> 'Tensor':
     assert len(lhs.shape) > 1 and len(rhs.shape) > 1, "Expected N-D(N>1) matrix, but got 1-D array"
     data = lhs.data @ rhs.data
     requires_grad = lhs.requires_grad or rhs.requires_grad
     depends_on = []
     grad_fn = MatmulBackward
     if lhs.requires_grad:
-        depends_on.append(Edge(lhs, ['left',rhs.data]))
+        depends_on.append(Edge(lhs, ['left', rhs.data]))
 
     if rhs.requires_grad:
-        depends_on.append(Edge(rhs, ['right',lhs.data]))
+        depends_on.append(Edge(rhs, ['right', lhs.data]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def _matmul_array_tensor(lhs:np.ndarray,rhs:'Tensor')->'Tensor':
+def _matmul_array_tensor(lhs: np.ndarray, rhs: 'Tensor') -> 'Tensor':
     assert len(lhs.shape) > 1 and len(rhs.shape) > 1, "Expected N-D(N>1) matrix, but got 1-D array"
     data = lhs @ rhs.data
     requires_grad = rhs.requires_grad
@@ -688,31 +688,30 @@ def _matmul_array_tensor(lhs:np.ndarray,rhs:'Tensor')->'Tensor':
     grad_fn = MatmulBackward
 
     if rhs.requires_grad:
-        depends_on.append(Edge(rhs, ['right',lhs]))
+        depends_on.append(Edge(rhs, ['right', lhs]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def matmul(lhs:Union['Tensor',np.ndarray], rhs: Union['Tensor',np.ndarray]) -> 'Tensor':
+def matmul(lhs: Union['Tensor', np.ndarray], rhs: Union['Tensor', np.ndarray]) -> 'Tensor':
     if isinstance(lhs, Tensor):
         if isinstance(rhs, Tensor):
             return _matmul_tensor_tensor(lhs, rhs)
-        elif isinstance(rhs,np.ndarray):
-            return _matmul_array_tensor(rhs,lhs)
+        elif isinstance(rhs, np.ndarray):
+            return _matmul_array_tensor(rhs, lhs)
         else:
             raise TypeError("matmul: rhs must be a Tensor or ndarray, but got %s" % type(rhs))
 
-    elif isinstance(lhs,np.ndarray):
+    elif isinstance(lhs, np.ndarray):
         if isinstance(rhs, Tensor):
-            return _matmul_array_tensor(lhs,rhs)
+            return _matmul_array_tensor(lhs, rhs)
         else:
             raise TypeError("matmul: if lhs is a ndarray, rhs must be a Tensor, but got %s" % type(rhs))
     else:
         raise TypeError("matmul: unsupported operand type(s) for %s @ %s " % (type(lhs), type(rhs)))
 
 
-
-def MatmulBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+def MatmulBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     is_right = True if args[0] == 'right' else False
     data = args[1]
     dims = len(data.shape)
@@ -738,10 +737,11 @@ def MatmulBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
     return Tensor(grad_data)
 
 
-def AbsBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+def AbsBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     data = np.ones_like(t.data)
     data[t.data < 0] = -1
     return Tensor(grad.data * data)
+
 
 def abs(t: Tensor) -> Tensor:
     data = np.abs(t.data)
@@ -754,8 +754,8 @@ def abs(t: Tensor) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def NormBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
-    order,reduction = args
+def NormBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+    order, reduction = args
     if order == 1:
         data = np.ones_like(t.data)
         data[t.data < 0] = -1
@@ -786,7 +786,7 @@ def norm(t: Tensor, order=2, reduction='sum'):
     grad_fn = NormBackward
     depends_on = []
     if requires_grad:
-        depends_on.append(Edge(t, [order,reduction]))
+        depends_on.append(Edge(t, [order, reduction]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
@@ -808,7 +808,7 @@ def power(t: 'Tensor', pow: Scalar) -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def LogBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+def LogBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     return Tensor(grad.data / (t.data + 1e-16))
 
 
@@ -822,8 +822,10 @@ def log(t: Tensor) -> Tensor:
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
+
 def ExpBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     return Tensor(grad.data * args[0])
+
 
 def exp(t: 'Tensor') -> 'Tensor':
     data = np.exp(t.data)
@@ -836,9 +838,10 @@ def exp(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ReshapeBackward(grad: 'Tensor', t: 'Tensor', args:list) -> 'Tensor':
+def ReshapeBackward(grad: 'Tensor', t: 'Tensor', args: list) -> 'Tensor':
     original_shape = t.shape
     return Tensor(grad.data.reshape(original_shape))
+
 
 def reshape(t: 'Tensor', newshape):
     data = t.data.reshape(newshape)
@@ -851,7 +854,7 @@ def reshape(t: 'Tensor', newshape):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def SwapaxesBackward(grad: 'Tensor', t: 'Tensor', args:List) -> 'Tensor':
+def SwapaxesBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     axis1, axis2 = args
     return Tensor(np.swapaxes(grad.data, axis2, axis1))
 
@@ -865,4 +868,3 @@ def swapaxes(t: 'Tensor', axis1, axis2):
         depends_on.append(Edge(t, [axis1, axis2]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
-

@@ -1,17 +1,20 @@
 # https://blog.csdn.net/qiusuoxiaozi/article/details/54286706
 # https://blog.csdn.net/gangyin5071/article/details/79762352
-from .. import tensor as mt, Dependency, Tensor
+
+from typing import List
+from ..tensor import Edge, Tensor
+from ..utils import rand, zeros
 from . import Layer
 import numpy as np
 
 # 引导进入反向传播的辅助变量
-step_in = mt.zeros(1, requires_grad=True)
-step_out = mt.zeros(1)
+step_in = zeros(1, requires_grad=True)
+step_out = zeros(1)
 
 
 class RNNBase(Layer):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True, dropout=0, mode="RNN"):
-        super(RNNBase,self).__init__()
+        super(RNNBase, self).__init__()
         self.parameters = []
         self.hidden_size = hidden_size
         self.need_bias = bias
@@ -27,7 +30,7 @@ class RNNBase(Layer):
         if mode == "LSTM":
             gate_size = 4 * hidden_size
         elif mode == "GRU":
-            gate_size = 2 * hidden_size
+            gate_size = 3 * hidden_size
         else:
             gate_size = hidden_size
 
@@ -40,20 +43,24 @@ class RNNBase(Layer):
         for layer in range(num_layers):
             # 输入门参数
             layer_input_size = input_size if layer == 0 else hidden_size
-            weight = mt.rand(layer_input_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
+            weight = rand(layer_input_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
+            weight.grad = Tensor(np.zeros_like(weight.data))
 
             self.weight_i.append(weight)
             self.parameters.append(weight)
 
-            weight = mt.rand(hidden_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
+            weight = rand(hidden_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
+            weight.grad = Tensor(np.zeros_like(weight.data))
             self.weight_h.append(weight)
             self.parameters.append(weight)
 
         if self.need_bias:
             for i in range(num_layers):
-                bias = mt.rand(gate_size, requires_grad=True, scale=scale, trimmean=True)
+                bias = rand(gate_size, requires_grad=True, scale=scale, trimmean=True)
+                bias.grad = Tensor(np.zeros_like(bias.data))
                 self.bias.append(bias)
                 self.parameters.append(bias)
+
 
 class LSTM(RNNBase):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True, dropout=0):
@@ -69,7 +76,7 @@ class LSTM(RNNBase):
     def sigmoid(self, data):
         return 1.0 / (1.0 + np.exp(-data))
 
-    def __call__(self, input: mt.Tensor, h0: mt.Tensor, c0: mt.Tensor):
+    def __call__(self, input: Tensor, h0: Tensor, c0: Tensor):
         seq_len, batch_size, _ = input.shape  # (seq, batch, feature)
         grad_fn = LSTMBackward
         sz = self.hidden_size
@@ -111,10 +118,10 @@ class LSTM(RNNBase):
 
         dropout_mask = []
         requires_grad = self.weight_i[0].requires_grad or input.requires_grad or h0.requires_grad or c0.requires_grad
-        self.need_dropout = requires_grad and self.dropout > 0
+        self.need_dropout = self.training and requires_grad and self.dropout > 0
 
         # 此时我们需要记录dropout的mask
-        if self.need_dropout > 0:
+        if self.need_dropout:
             p = self.dropout
             scale = 1 / (1 - p)
             for seq in range(seq_len):
@@ -126,7 +133,6 @@ class LSTM(RNNBase):
         output = []
         for seq in range(seq_len):
             h[seq + 1][0] = input[seq, :, :].data
-
             for i in range(self.num_layers):
                 if i > 0 and self.need_dropout:
                     if self.need_bias:
@@ -176,71 +182,52 @@ class LSTM(RNNBase):
         depends_on = []
         if requires_grad:
             depends_on.append(
-                Dependency(step_in,
-                           ['output', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0]))
+                Edge(step_in,
+                     ['output', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0]))
 
-        output = mt.Tensor(np.stack(output),
-                           requires_grad=requires_grad,
-                           depends_on=depends_on,
-                           grad_fn=grad_fn)
+        output = Tensor(np.stack(output),
+                        requires_grad=requires_grad,
+                        depends_on=depends_on,
+                        grad_fn=grad_fn,
+                        is_simple=False)
+
+        depends_on = []
+        if requires_grad:
+            depends_on = [
+                Edge(step_in,
+                     ['hn', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0])]
+
+        hn = Tensor(np.stack(h[-1][1::]),
+                    requires_grad=requires_grad,
+                    depends_on=depends_on,
+                    grad_fn=grad_fn,
+                    is_simple=False)
 
         depends_on = []
         if requires_grad:
             depends_on.append(
-                Dependency(step_in, ['hn', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0]))
+                Edge(step_in,
+                     ['cn', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0]))
 
-        hn = mt.Tensor(np.stack(h[-1][1::]),
-                       requires_grad=requires_grad,
-                       depends_on=depends_on,
-                       grad_fn=grad_fn)
-
-        depends_on = []
-        if requires_grad:
-            depends_on.append(
-                Dependency(step_in, ['cn', self, h, [b_at, b_ot, b_kt, b_da, b_do, b_dk], dropout_mask, input, h0, c0]))
-
-        cn = mt.Tensor(np.stack(cn[1::]),
-                       requires_grad=requires_grad,
-                       depends_on=depends_on,
-                       grad_fn=grad_fn)
+        cn = Tensor(np.stack(cn[1::]),
+                    requires_grad=requires_grad,
+                    depends_on=depends_on,
+                    grad_fn=grad_fn,
+                    is_simple=False)
 
         return output, hn, cn
 
 
-def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    # 'output', self, h, c, bridge, dropout_mask, input, h0, c0
-    backward_type = other_args[0]
-    self = other_args[1]
-    h = other_args[2]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
-    b_at, b_ot, b_kt, b_da, b_do, b_dk = other_args[3]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
-    dropout_mask = other_args[4]
-    input = other_args[5]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
-    h0 = other_args[6]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
-    c0 = other_args[7]
-
+def LSTMBackward(output_grad: Tensor, t: 'Tensor', args: List) -> 'Tensor':
+    backward_type, self, h, bridge, dropout_mask, input, h0, c0 = args
+    b_at, b_ot, b_kt, b_da, b_do, b_dk = bridge
+    # h = other_args[2]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
     seq_len = len(h) - 1
     num_layers = len(h[0]) - 1
     batch_size, sz = h[1][1].shape  # sz = hidden_size
     sz3 = sz * 3
     sz2 = sz * 2
 
-    # 计算从输出传入的梯度的计算
-    # output_grad的shape和output的shape是一致的，(seq, batch, hidden_size)
-    # hn_grad的shape和hn的shape是一致的，(num_layers, batch, hidden_size)
-    # if backward_type == 'output':
-    #     o_grad = output_grad.data
-    #     h_grad = np.zeros((num_layers, batch_size, sz))
-    #     c_grad = np.zeros((num_layers, batch_size, sz))
-    #
-    # elif backward_type == 'hn':
-    #     o_grad = np.zeros((seq_len, batch_size, sz))
-    #     h_grad = output_grad.data
-    #     c_grad = np.zeros((num_layers, batch_size, sz))
-    # else:
-    #     o_grad = np.zeros((seq_len, batch_size, sz))
-    #     h_grad = np.zeros((num_layers, batch_size, sz))
-    #     c_grad = output_grad.data
-    # ==>
     is_output_backward = False
     is_hn_backward = False
     is_cn_backward = False
@@ -251,7 +238,7 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
     else:
         is_cn_backward = True
 
-    ################################反向传播梯度#################################
+    # 反向传播梯度
     # 与 h,c保持一致
     delta_h = []
     delta_c = []
@@ -338,8 +325,8 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
         w_h_o = self.weight_h[layer - 1].data[:, sz3:].T
 
         for seq in range(seq_len - 1, 0, -1):
-            #####从上层传递到该层#########
-            ###{begin}
+            # ####从上层传递到该层#########
+            # ##{begin}
             grad_a = b_da[seq][layer + 1].copy()
             delta = delta_h[seq][layer + 1]
             wis = delta_c[seq][layer + 1] + delta * b_dk[seq][layer + 1]
@@ -354,10 +341,10 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
             if self.need_dropout:
                 data_1 *= dropout_mask[seq - 1][layer - 1]
 
-            ###{end}
+            # ##{end}
 
-            #####从上一时刻传递到该时刻#########
-            ###{begin}
+            # ####从上一时刻传递到该时刻#########
+            # ##{begin}
             grad_a = b_da[seq + 1][layer].copy()
             whs = delta_c[seq + 1][layer] + delta_h[seq + 1][layer] * b_dk[seq + 1][layer]
             grad_a[:, 0:sz] *= whs
@@ -368,35 +355,37 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
             data_2 = grad_o @ w_h_o + grad_a @ w_h_a
 
             delta_h[seq][layer] = data_1 + data_2
-            ###{end}
+            # ##{end}
 
             # delta_c->ok
             delta_c[seq][layer] = b_at[seq + 1][layer][0:, 0:sz] * whs
 
-    ################################反向传播梯度#################################
+    # ###############################反向传播梯度#################################
     # RNN参数梯度计算
-    for layer in range(num_layers):
-        for seq in range(1, seq_len + 1):
-            # 首先计算 f,i,g
+    if self.weight_h[0].requires_grad:
+        for layer in range(num_layers):
+            for seq in range(1, seq_len + 1):
+                # 首先计算 f,i,g
+                grad_a = b_da[seq][layer + 1].copy()
+                wis = delta_c[seq][layer + 1] + delta_h[seq][layer + 1] * b_dk[seq][layer + 1]
+                grad_a[:, 0:sz] *= wis
+                grad_a[:, sz:sz2] *= wis
+                grad_a[:, sz2:sz3] *= wis
+                self.weight_h[layer].grad.data[:, 0:sz3] += h[seq - 1][layer + 1].T @ grad_a
+                # 计算o
+                grad_o = b_do[seq][layer + 1].copy() * delta_h[seq][layer + 1]
+                self.weight_h[layer].grad.data[:, sz3:] += h[seq - 1][layer + 1].T @ grad_o
 
-            grad_a = b_da[seq][layer + 1].copy()
-            wis = delta_c[seq][layer + 1] + delta_h[seq][layer + 1] * b_dk[seq][layer + 1]
-            grad_a[:, 0:sz] *= wis
-            grad_a[:, sz:sz2] *= wis
-            grad_a[:, sz2:sz3] *= wis
-            self.weight_h[layer].grad.data[:, 0:sz3] += h[seq - 1][layer + 1].T @ grad_a
-            # 计算o
-            grad_o = b_do[seq][layer + 1].copy() * delta_h[seq][layer + 1]
-            self.weight_h[layer].grad.data[:, sz3:] += h[seq - 1][layer + 1].T @ grad_o
+                self.weight_i[layer].grad.data[:, 0:sz3] += h[seq][layer].T @ grad_a
+                self.weight_i[layer].grad.data[:, sz3:] += h[seq][layer].T @ grad_o
 
-            self.weight_i[layer].grad.data[:, 0:sz3] += h[seq][layer].T @ grad_a
-            self.weight_i[layer].grad.data[:, sz3:] += h[seq][layer].T @ grad_o
+                if self.need_bias:
+                    self.bias[layer].grad.data[0:sz3] += grad_a.sum(axis=0)
+                    self.bias[layer].grad.data[sz3:] += grad_o.sum(axis=0)
 
-            if self.need_bias:
-                self.bias[layer].grad.data[0:sz3] += grad_a.sum(axis=0)
-                self.bias[layer].grad.data[sz3:] += grad_o.sum(axis=0)
-
+    tensor_grad = []
     if input.requires_grad:
+        grad_data = [0 for _ in range(seq_len)]
         w_h_o = self.weight_i[0].data[:, sz3:].T
         w_h_a = self.weight_i[0].data[:, 0:sz3].T
         for seq in range(1, seq_len + 1):
@@ -406,10 +395,13 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
             grad_a[:, sz:sz2] *= wis
             grad_a[:, sz2:sz3] *= wis
 
-            input.grad.data[seq - 1] += delta_h[seq][1] * b_do[seq][1] @ w_h_o + grad_a @ w_h_a
+            grad_data[seq - 1] = delta_h[seq][1] * b_do[seq][1] @ w_h_o + grad_a @ w_h_a
+
+        tensor_grad.append(input, Tensor(np.stack(grad_data)))
 
     if h0 is not None:
         if h0.requires_grad:
+            grad_data = [0 for _ in range(num_layers)]
             for layer in range(1, num_layers + 1):
                 grad_a = b_da[1][layer].copy()
                 whs = delta_c[1][layer] + delta_h[1][layer] * b_dk[1][layer]
@@ -417,17 +409,22 @@ def LSTMBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
                 grad_a[:, sz:sz2] *= whs
                 grad_a[:, sz2:sz3] *= whs
 
-                h0.grad.data[layer - 1] += delta_h[1][layer] * b_do[1][layer] @ \
-                                           self.weight_h[layer - 1].data[:, sz3:].T + \
-                                           grad_a @ self.weight_h[layer - 1].data[:, 0:sz3].T
+                grad_data[layer - 1] = delta_h[1][layer] * b_do[1][layer] @ \
+                                       self.weight_h[layer - 1].data[:, sz3:].T + \
+                                       grad_a @ self.weight_h[layer - 1].data[:, 0:sz3].T
+
+        tensor_grad.append(h0, Tensor(np.stack(grad_data)))
 
     if c0 is not None:
         if c0.requires_grad:
+            grad_data = [0 for _ in range(num_layers)]
             for layer in range(1, num_layers + 1):
-                c0.grad.data[layer - 1] += delta_c[1][layer] * b_at[1][layer][0:, 0:sz] + \
-                                           delta_h[1][layer] * b_at[1][layer][0:, 0:sz] * b_dk[1][layer]
+                grad_data[layer - 1] = delta_c[1][layer] * b_at[1][layer][0:, 0:sz] + \
+                                       delta_h[1][layer] * b_at[1][layer][0:, 0:sz] * b_dk[1][layer]
 
-    return step_out
+        tensor_grad.append(c0, Tensor(np.stack(grad_data)))
+
+    return tensor_grad
 
 
 class RNN(RNNBase):
@@ -441,7 +438,7 @@ class RNN(RNNBase):
         """
         super(RNN, self).__init__(input_size, hidden_size, num_layers, bias, dropout, "RNN")
 
-    def __call__(self, input: mt.Tensor, h0: mt.Tensor):
+    def __call__(self, input: Tensor, h0: Tensor):
         seq_len, batch_size, _ = input.shape  # (seq, batch, feature)
         requires_grad = True
         depends_on = []
@@ -466,9 +463,10 @@ class RNN(RNNBase):
         for seq in range(seq_len):
             h[seq + 1][0] = input[seq, :, :].data
 
+        self.need_dropout = self.dropout > 0 and self.training and requires_grad
         dropout_mask = []
         # 此时我们需要记录dropout的mask
-        if self.dropout > 0:
+        if self.need_dropout:
             p = self.dropout
             scale = 1 / (1 - p)
             for seq in range(seq_len):
@@ -478,69 +476,51 @@ class RNN(RNNBase):
                 dropout_mask.append(masks)
 
         output = []
-
-        if self.dropout > 0:
-            for seq in range(seq_len):
-
-                i = 0
-                if self.need_bias:
-                    output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ \
-                               self.weight_h[i].data + self.bias[i].data
-                else:
-                    output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ \
-                               self.weight_h[i].data
-                h[seq + 1][i + 1] = np.tanh(output_h)
-
-                for i in range(1, self.num_layers):
+        for seq in range(seq_len):
+            for i in range(0, self.num_layers):
+                if i > 0 and self.need_dropout:
                     if self.need_bias:
-                        output_h = h[seq + 1][i] * dropout_mask[seq][i - 1] @ self.weight_i[i].data + h[seq][i + 1] @ \
+                        output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ \
                                    self.weight_h[i].data + self.bias[i].data
                     else:
-                        output_h = h[seq + 1][i] * dropout_mask[seq][i - 1] @ self.weight_i[i].data + h[seq][i + 1] @ \
+                        output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ \
                                    self.weight_h[i].data
-                    h[seq + 1][i + 1] = np.tanh(output_h)
-
-                output.append(h[seq + 1][-1])
-        else:
-            for seq in range(seq_len):
-                for i in range(self.num_layers):
+                else:
                     if self.need_bias:
                         output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ self.weight_h[i].data + \
                                    self.bias[i].data
                     else:
                         output_h = h[seq + 1][i] @ self.weight_i[i].data + h[seq][i + 1] @ self.weight_h[i].data
-                    h[seq + 1][i + 1] = np.tanh(output_h)
 
-                output.append(h[seq + 1][-1])
+                h[seq + 1][i + 1] = np.tanh(output_h)
 
-        # Tensor的反向传播算法会根据Dependency递归计算梯度的
-        # RNN的参数，采用的是list格式，另外，RNN层的内部梯度实际是独立完成的
-        # RNN的内部梯度要利用h计算delta,避免重复计算，
-        # 借助一个Tensor进入反向传播函数，完成所有参数的梯度计算
+            output.append(h[seq + 1][-1])
 
-        depends_on.append(Dependency(step_in, ['output', self, h, dropout_mask, input, h0]))
-        output = mt.Tensor(np.stack(output),
-                           requires_grad=requires_grad,
-                           depends_on=depends_on,
-                           grad_fn=grad_fn)
-
-        requires_grad = True
         depends_on = []
-        depends_on.append(Dependency(step_in, ['hn', self, h, dropout_mask, input, h0]))
+        if requires_grad:
+            depends_on.append(Edge(step_in, ['output', self, h, dropout_mask, input, h0]))
+            output = Tensor(np.stack(output),
+                            requires_grad=requires_grad,
+                            depends_on=depends_on,
+                            grad_fn=grad_fn,
+                            is_simple=False)
 
-        hn = mt.Tensor(np.stack(h[-1][1::]),
-                       requires_grad=requires_grad,
-                       depends_on=depends_on,
-                       grad_fn=grad_fn)
+        depends_on = []
+        if requires_grad:
+            depends_on.append(Edge(step_in, ['hn', self, h, dropout_mask, input, h0]))
+
+        hn = Tensor(np.stack(h[-1][1::]),
+                    requires_grad=requires_grad,
+                    depends_on=depends_on,
+                    grad_fn=grad_fn,
+                    is_simple=False)
 
         return output, hn
 
 
-def RNNBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    backward_type = other_args[0]
-    self = other_args[1]
-    h = other_args[2]  # shape: seq + 1,num_layers+1,batch_size, hidden_size
-    dropout_mask = other_args[3]
+def RNNBackward(output_grad: 'Tensor',depends_on:List) -> 'Tensor':
+    edge = depends_on[0]
+    backward_type, self, h, dropout_mask, input, h0 = edge.args
     seq_len = len(h) - 1
     num_layers = len(h[0]) - 1
     batch_size, hidden_size = h[1][1].shape
@@ -555,7 +535,7 @@ def RNNBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
         o_grad = np.zeros((seq_len, batch_size, hidden_size))
         h_grad = output_grad.data
 
-    ################################反向传播梯度#################################
+    # ###############################反向传播梯度#################################
     delta = []
     for seq in range(seq_len + 1):
         tmp = [0 for _ in range(num_layers + 1)]
@@ -588,32 +568,35 @@ def RNNBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
                                 (1 - h[seq + 1][layer] ** 2) * delta[seq + 1][layer] @ self.weight_h[
                                     layer - 1].data.T
 
-    ################################反向传播梯度#################################
+    # ###############################反向传播梯度#################################
 
     # RNN参数梯度计算
-    for layer in range(num_layers):
-        for seq in range(1, seq_len + 1):
-            self.weight_i[layer].grad.data += h[seq][layer].T @ (
-                    delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2))
-
-            self.weight_h[layer].grad.data += h[seq - 1][layer + 1].T @ (
-                    delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2))
-
-        if self.need_bias:
+    if self.weight_i[0].requires_grad:
+        for layer in range(num_layers):
             for seq in range(1, seq_len + 1):
-                self.bias[layer].grad.data += (delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2)).sum(axis=0)
+                self.weight_i[layer].grad.data += h[seq][layer].T @ (
+                        delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2))
 
-    input = other_args[4]
+                self.weight_h[layer].grad.data += h[seq - 1][layer + 1].T @ (
+                        delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2))
+
+            if self.need_bias:
+                for seq in range(1, seq_len + 1):
+                    self.bias[layer].grad.data += (delta[seq][layer + 1] * (1 - h[seq][layer + 1] ** 2)).sum(axis=0)
+
+    tensor_grad = []
     if input.requires_grad:
+        grad_data = [0 for _ in range(seq_len)]
         for seq in range(1, seq_len + 1):
-            input.grad.data[seq - 1] += (delta[seq][1] * (1 - h[seq][1] ** 2)) @ self.weight_i[0].data.T
+            grad_data[seq - 1] = (delta[seq][1] * (1 - h[seq][1] ** 2)) @ self.weight_i[0].data.T
+        tensor_grad.append((input, Tensor(np.stack(grad_data))))
 
-    h0 = other_args[5]
     if h0 is None:
-        return step_out
+        return tensor_grad
 
     if h0.requires_grad:
+        grad_data = [0 for _ in range(num_layers)]
         for layer in range(1, num_layers + 1):
-            h0.grad.data[layer - 1] += (delta[1][layer] * (1 - h[1][layer] ** 2)) @ self.weight_h[layer - 1].data.T
-
-    return step_out
+            grad_data[layer - 1] = (delta[1][layer] * (1 - h[1][layer] ** 2)) @ self.weight_h[layer - 1].data.T
+        tensor_grad.append((h0, Tensor(np.stack(grad_data))))
+    return tensor_grad
