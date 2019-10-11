@@ -172,13 +172,17 @@ class Tensor(TensorBase):
         return Tensor(self.data.copy())
 
     def deepcopy(self):
-        return Tensor(data=self.data.copy(),
-                      requires_grad=self.requires_grad,
-                      depends_on=self.depends_on,
-                      grad_fn=self.grad_fn,
-                      name=self.name,
-                      is_leaf=self.is_leaf,
-                      is_simple=self.is_simple)
+        other = Tensor(data=self.data.copy(),
+                       requires_grad=self.requires_grad,
+                       depends_on=self.depends_on,
+                       grad_fn=self.grad_fn,
+                       name=self.name,
+                       is_leaf=self.is_leaf,
+                       is_simple=self.is_simple)
+        if self.grad:
+            other.grad = self.grad.copy()
+
+        return other
 
     # 两个约并函数
     def sum(self, axis=None, keepdims=False) -> 'Tensor':
