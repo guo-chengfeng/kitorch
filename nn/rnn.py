@@ -178,10 +178,11 @@ def RNNBackward(grad: Tensor, depends_on):
                                                       i_rg, h0_requires_grad, w_requires_grad, seq_len)
 
         h0_grad[layer] = _h0_grad
-        if layer > 0 and self.need_dropout:
-            output_grad = Tensor(np.stack(output_grad) * dropout_mask[layer - 1])
-        else:
-            output_grad = Tensor(np.stack(output_grad))
+        if output_grad is not None:
+            if layer > 0 and self.need_dropout:
+                output_grad = Tensor(np.stack(output_grad) * dropout_mask[layer - 1])
+            else:
+                output_grad = Tensor(np.stack(output_grad))
 
     tensor_grad = []
     if input_requires_grad:
@@ -408,10 +409,11 @@ def LSTMBackward(grad: Tensor, depends_on):
 
         h0_grad[layer] = _h0_grad
         c0_grad[layer] = _c0_grad
-        if layer > 0 and self.need_dropout:
-            output_grad = Tensor(np.stack(output_grad) * dropout_mask[layer - 1])
-        else:
-            output_grad = Tensor(np.stack(output_grad))
+        if output_grad is not None:
+            if layer > 0 and self.need_dropout:
+                output_grad = Tensor(np.stack(output_grad) * dropout_mask[layer - 1])
+            else:
+                output_grad = Tensor(np.stack(output_grad))
 
     tensor_grad = []
     if input_requires_grad:
