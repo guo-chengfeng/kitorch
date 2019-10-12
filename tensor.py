@@ -226,6 +226,8 @@ class Tensor(TensorBase):
     def swapaxes(self, axis1, axis2):
         return swapaxes(self, axis1, axis2)
 
+    def transpose(self,axis1,axis2):
+        return transpose(self,axis1,axis2)
 
 def SilceBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     grad_data = np.zeros_like(t.data)
@@ -278,7 +280,6 @@ def SoftmaxBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
 
 
 def softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
-    assert len(t.shape) <= 2, "Except N-D Tensor(N<=2), but get %s-D" % len(t.shape)
     assert dim < len(t.shape), "The argument `dim` should not bigger than Tensor's dimension"
     if deoverflow:
         a = np.exp(t.data - np.max(t.data, axis=dim, keepdims=True))
@@ -870,5 +871,22 @@ def swapaxes(t: 'Tensor', axis1, axis2):
     depends_on = []
     if requires_grad:
         depends_on.append(Edge(t, [axis1, axis2]))
+
+    return Tensor(data, requires_grad, depends_on, grad_fn)
+
+
+def TransposeBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+    return Tensor(np.transpose(grad.data, args[0]))
+
+def transpose(t: Tensor,axis1,axis2) -> 'Tensor':
+    axes = [i for i in range(t.dim)]
+    axes[axis1] = axis2
+    axes[axis2] = axis1
+    data = np.transpose(t.data, axes)
+    requires_grad = t.requires_grad
+    grad_fn = TransposeBackward
+    depends_on = []
+    if requires_grad:
+        depends_on.append(Edge(t, [axes]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
