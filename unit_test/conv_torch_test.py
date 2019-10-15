@@ -1,19 +1,18 @@
-from ..functional.conv_by_torch import conv2d
+from ..functional.conv_torch import conv2d
 from ..utils import rand, rand_like
 import unittest
 import torch
 import time
 from . import check, to_torch, Timer
-
+import numpy as np
 
 def main_conv(input, weight, bias=None, stride=None, padding=None):
     start = time.time()
     out = conv2d(input, weight, bias=bias, stride=stride, padding=padding)
-    Timer.show_time((time.time() - start), "Numpy conv2d forward")
     g = rand_like(out)
-    start = time.time()
+
     out.backward(g)
-    Timer.show_time((time.time() - start), "Numpy conv2d backward")
+    Timer.show_time((time.time() - start), "Numpy conv2d")
 
     if bias:
         t_input, t_weight, t_bias, v = to_torch([input, weight, bias, g])
@@ -27,10 +26,10 @@ def main_conv(input, weight, bias=None, stride=None, padding=None):
         t_out.backward(v)
 
     Timer.show_time((time.time() - start), "torch conv2d")
-    check(out, t_out, grad=False)
+    check(out, t_out, eps=1e-4, grad=False)
 
-    check(input, t_input,eps=1e-4)
-    check(weight, t_weight)
+    check(input, t_input, eps=1e-4)
+    check(weight, t_weight, eps=1e-4)
     if bias:
         check(bias, t_bias)
 

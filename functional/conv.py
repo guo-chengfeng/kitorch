@@ -1,142 +1,235 @@
+"""
+@author:  guo_chengfeng
+@contact: chf_guo@163.com
+@file: __init__.py
+@time: 2019/10/15 13:11
+@version: 0.1
+@desc: An implementation of the conv2d forward and backward
+
+The core code of conv2d_forward is from https://github.com/cthorey/CS231/blob/master/assignment2/
+
+"""
+
 import numpy as np
 from ..tensor import Tensor, Edge
+from ..utils import zeros
+
+step_in = zeros(1, requires_grad=True)
 
 
-def Conv2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    backward_type = other_args[0]
-
-    if backward_type == 'inputs':
-        weight = other_args[1]
-        _data = _Conv2dBackward0(output_grad.data, weight.data)
-        padding = other_args[2]
-        if padding:
-            pH = padding[0]
-            pW = padding[1]
-            if pH > 0 and pW > 0:
-                data = _data[:, :, pH:-pH, pW:-pW]
-            elif pH > 0 and pW == 0:
-                data = _data[:, :, pH:-pH, :]
-            elif pW > 0 and pH == 0:
-                data = _data[:, :, :, pW:-pW]
-            else:
-                return Tensor(_data)
-            return Tensor(data)
-        else:
-            return Tensor(_data)
-    elif backward_type == 'weight':
-        inputs = other_args[1]
-        padding = other_args[2]
-        if padding:
-            pad_width = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
-            data = np.lib.pad(inputs.data, pad_width, mode='constant', constant_values=0)
-        else:
-            data = inputs.data
-        return Tensor(_Conv2dBackward1(data, output_grad.data))
+def bi_tuple(num):
+    """convert a int to tuple of (int,int)"""
+    if isinstance(num, int):
+        return num, num
     else:
-        bias_grad = output_grad.data.sum(axis=(3, 2, 0))
-        return Tensor(bias_grad)
+        return num
 
 
-def conv2d(inputs: Tensor, weight: Tensor, bias=None, padding=None) -> Tensor:
-    """
-    :param inputs: input tensor of shape (batch_size X in_channel X iH X iW)
-    :param weight: filters of shape (out_channel X in_channel X kH X kW)
-    :param bias: optional bias tensor of shape (out_channel)
-    :param padding: padding on both sides of the input.A tuple (padH,padW) or None, default: None
-    :return: output tensor of shape (batch_size X out_channel X iH+2*padH-kH+1 X iW+2*padW-kW+1)
-    """
+def get_im2col_indices(x_shape, kernel_height, kernel_width, padding=(0, 0), stride=(1, 1)):
+    # First figure out what the size of the output should be
+    N, C, H, W = x_shape
+    assert (H + 2 * padding[0] - kernel_height) % stride[0] == 0
+    assert (W + 2 * padding[1] - kernel_height) % stride[1] == 0
+    out_height = int((H + 2 * padding[0] - kernel_height) / stride[0] + 1)
+    out_width = int((W + 2 * padding[1] - kernel_width) / stride[1] + 1)
 
-    if padding:
-        weight_shape = weight.shape
-        assert padding[0] <= weight_shape[2] / 2 and padding[1] <= weight_shape[
-            3] / 2, "pad should be smaller than half of kernel size"
+    i0 = np.repeat(np.arange(kernel_height), kernel_width)
+    i0 = np.tile(i0, C)
+    i1 = stride[0] * np.repeat(np.arange(out_height), out_width)
+    j0 = np.tile(np.arange(kernel_width), kernel_height * C)
+    j1 = stride[1] * np.tile(np.arange(out_width), out_height)
+    i = i0.reshape(-1, 1) + i1.reshape(1, -1)
+    j = j0.reshape(-1, 1) + j1.reshape(1, -1)
 
-    need_bias = bias is not None
-    if need_bias:
-        data = ndarray_conv2d(inputs.data, weight.data, bias.data, padding)
-        requires_grad = inputs.requires_grad or weight.requires_grad or bias.requires_grad
+    k = np.repeat(np.arange(C), kernel_height * kernel_width).reshape(-1, 1)
+
+    return k, i, j
+
+
+def im2col_indices(x, kernel_height, kernel_width, padding=(0, 0), stride=(1, 1)):
+    """ An implementation of im2col based on some fancy indexing """
+    # Zero-pad the input
+    if sum(padding) > 0:
+        p = padding
+        x_padded = np.pad(x, ((0, 0), (0, 0), (p[0], p[0]), (p[1], p[1])), mode='constant')
     else:
-        data = ndarray_conv2d(inputs.data, weight.data, padding)
-        requires_grad = inputs.requires_grad or weight.requires_grad
+        x_padded = x
+
+    k, i, j = get_im2col_indices(x.shape, kernel_height, kernel_width, padding,
+                                 stride)
+
+    # most time consuming
+    cols = x_padded[:, k, i, j]
+    C = x.shape[1]
+    cols = cols.transpose(1, 2, 0).reshape(kernel_height * kernel_width * C, -1)
+
+    return cols
+
+
+# SLOW
+def col2im_indices(cols, x_shape, kernel_height=3, kernel_width=3, padding=(0, 0),
+                   stride=(1, 1)):
+    """ An implementation of col2im based on fancy indexing and np.add.at """
+    N, C, H, W = x_shape
+    H_padded, W_padded = int(H + 2 * padding[0]), int(W + 2 * padding[1])
+    x_padded = np.zeros((N, C, H_padded, W_padded), dtype=cols.dtype)
+    k, i, j = get_im2col_indices(x_shape, kernel_height, kernel_width, padding,
+                                 stride)
+
+    cols_reshaped = cols.reshape(C * kernel_height * kernel_width, -1, N)
+    cols_reshaped = cols_reshaped.transpose(2, 0, 1)
+
+    np.add.at(x_padded, (slice(None), k, i, j), cols_reshaped)
+
+    if padding == (0, 0):
+        return x_padded
+    if padding[0] > 0 and padding[1] > 0:
+        return x_padded[:, :, padding[0]:-padding[0], padding[1]:-padding[1]]
+
+    if padding[0] == 0 and padding[1] > 0:
+        return x_padded[:, :, :, padding[1]:-padding[1]]
+
+    return x_padded[:, :, padding[0]:-padding[0], :]
+
+
+def conv2d_forward(x, w, b=None, stride=(1, 1), padding=(0, 0)):
+    """
+    Forward pass for a convolutional layer.
+    The input consists of N data points, each with C channels, height H and
+    width W. We convolve each input with F different filters, where each filter
+    spans all C channels and has height HH and width HH.
+    Input:
+    - x: Input data of shape (N, C_in, H, W)
+    - w: Filter weights of shape (C_out, C_in, kH, kW)
+    - b: Biases, of shape (C_out,)
+    - out: Output data, of shape (N, C_out, H', W') where H' and W' are given by
+      H' = 1 + (H + 2*pad[0] - kH) / stride[0]
+      W' = 1 + (W + 2*pad[1] - kW) / stride[1]
+
+    The shapes of X and W satisfy:
+        (H + 2 * padding[0] - kH) % stride[0] == 0
+        (W + 2 * padding[1] - kW) % stride[1] == 0
+    """
+
+    """
+    Faster implementation [[[NOT MINE]]]
+    """
+    N, C, H, W = x.shape
+    num_filters, _, kernel_height, kernel_width = w.shape
+
+    # Create output
+    out_height = int(1 + (H + 2 * padding[0] - kernel_height) / stride[0])
+    out_width = int(1 + (W + 2 * padding[1] - kernel_width) / stride[1])
+    out = np.zeros((N, num_filters, out_height, out_width), dtype=x.dtype)
+
+    x_cols = im2col_indices(x, w.shape[2], w.shape[3], padding, stride)
+
+    if b is not None:
+        res = w.reshape((w.shape[0], -1)).dot(x_cols) + b.reshape(-1, 1)
+    else:
+        res = w.reshape((w.shape[0], -1)).dot(x_cols)
+
+    out = res.reshape(w.shape[0], out.shape[2], out.shape[3], x.shape[0])
+    out = out.transpose(3, 0, 1, 2)
+
+    return out, x_cols
+
+
+def conv2d_backward(dout, input_requires_grad, input_shape,
+                    weight_requires_grad, weight,
+                    x_cols, stride, padding):
+    """
+    Backward pass for a convolutional layer.
+    Inputs:
+    - dout: Upstream derivatives.
+    - cache: A tuple of (x, w, bi, conv_param) as in conv_forward
+    Returns a tuple of:
+    - dx: Gradient with respect to x
+    - dw: Gradient with respect to w
+    - db: Gradient with respect to b
+    """
+    dx, dw = None, None
+    """
+    """
+
+    num_filters, _, kH, kW = weight.shape
+    N, C, H, W = dout.shape
+    dout_reshaped = dout.transpose(1, 2, 3, 0).reshape(num_filters, -1)
+
+    if weight_requires_grad:
+        dw = dout_reshaped.dot(x_cols.T).reshape(weight.shape)
+
+    if input_requires_grad:
+        # 1.32  s
+        # dx_cols = weight.reshape(num_filters, -1).T.dot(dout_reshaped)
+        # dx = col2im_indices(dx_cols, input_shape, kH, kW, padding, stride)
+
+        # 460ms
+        if stride[0] > 1 or stride[1] > 1:
+            _dout = np.zeros((N, C, H * stride[0] - 1, W * stride[1] - 1))
+            index_i = np.repeat(np.arange(0, H) * stride[0], W)
+            index_j = np.tile(np.arange(0, W) * stride[1], H)
+            _dout[:, :, index_i, index_j] = dout.reshape(N, C, -1)
+        else:
+            _dout = dout
+
+        _weight = np.swapaxes(weight, axis1=0, axis2=1)
+        _weight = np.flip(_weight, (2, 3))
+
+        dx, _ = conv2d_forward(_dout, _weight, stride=(1, 1), padding=(kH - 1, kW - 1))
+        if padding[0] > 0 and padding[1] > 0:
+            dx = dx[:, :, padding[0]:-padding[0], padding[1]:-padding[1]]
+
+        elif padding[0] == 0 and padding[1] > 0:
+            dx = dx[:, :, :, padding[1]:-padding[1]]
+
+        elif padding[0] > 0 and padding[1] == 0:
+            dx = dx[:, :, padding[0]:-padding[0], :]
+
+    return dx, dw
+
+
+def Conv2dBackward(grad: 'Tensor', depends_on) -> 'Tensor':
+    edge = depends_on[0]
+    input, weight, bias, x_cols, stride, padding = edge.args
+    tensor_grad = []
+    if bias is not None:
+        tensor_grad.append((bias,
+                            Tensor(np.sum(grad.data, axis=(0, 2, 3)))))
+
+    input_requires_grad = input.requires_grad
+    weight_requires_grad = weight.requires_grad
+    if input_requires_grad or weight_requires_grad:
+        dx, dw = conv2d_backward(grad.data,
+                                 input_requires_grad, input.shape,
+                                 weight_requires_grad, weight.data,
+                                 x_cols, stride, padding)
+        if weight_requires_grad:
+            tensor_grad.append((weight, Tensor(dw)))
+        if input_requires_grad:
+            tensor_grad.append((input, Tensor(dx)))
+    return tensor_grad
+
+
+def conv2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None) -> Tensor:
+    requires_grad = input.requires_grad or weight.requires_grad
+    _stride = (1, 1) if stride is None else bi_tuple(stride)
+    _padding = (0, 0) if padding is None else bi_tuple(padding)
+
+    if bias is not None:
+        data, x_cols = conv2d_forward(input.data, weight.data, bias.data, _stride, _padding)
+        requires_grad = requires_grad or bias.requires_grad
+    else:
+        data, x_cols = conv2d_forward(input.data, weight.data, None, _padding, _stride)
 
     grad_fn = Conv2dBackward
     depends_on = []
-    if inputs.requires_grad:
-        depends_on.append(Edge(inputs, ['inputs', weight, padding]))
+    if requires_grad:
+        depends_on.append(Edge(step_in, [input, weight, bias, x_cols, _stride, _padding]))
 
-    if weight.requires_grad:
-        depends_on.append(Edge(weight, ['weight', inputs, padding]))
+    return Tensor(data, requires_grad, depends_on, grad_fn, is_simple=False)
 
-    if need_bias:
-        if bias.requires_grad:
-            depends_on.append(Edge(bias, ['bias']))
-
-    return Tensor(data, requires_grad, depends_on, grad_fn)
-
-
-# input: mini_batch X in_channel X iH X iW
-# weight: out_channel X in_channel X kH X kW
-# output: mini_batch X out_channel X iH X iW
-def ndarray_conv2d(inputs: np.ndarray, weight: np.ndarray, bias=None, padding=None):
-    if padding:
-        pad_width = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
-        inputs = np.lib.pad(inputs, pad_width, mode='constant', constant_values=0)
-
-    mini_batch, in_channel_1, iH, iW = inputs.shape
-    out_channel, in_channel_2, kH, kW = weight.shape
-    need_bias = bias is not None
-    assert in_channel_1 == in_channel_2, "in_channel of input and weight must be equal"
-    if need_bias:
-        assert bias.size == out_channel, "out_channel of bias and weight must be equal"
-
-    oH = iH - kH + 1
-    oW = iW - kW + 1
-    out_puts = np.empty((mini_batch, out_channel, oH, oW))
-    # 为了提高效率，我们需要控制最外层的循序条件
-    # 在第3和第4维度是必须要进行循环操作的，能优化的就只有第1和第2维度
-    # 最外层的循环次数应当最小
-
-    if out_channel < mini_batch:
-        for out_ch in range(out_channel):
-            kernel = weight[out_ch, :, :, :]
-            for h in range(oH):
-                for w in range(oW):
-                    (inputs[:, :, h:h + kH, w:w + kW] * kernel).sum(axis=(3, 2, 1), out=out_puts[:, out_ch, h, w])
-    else:
-        for sample in range(mini_batch):
-            for h in range(oH):
-                for w in range(oW):
-                    (inputs[sample, :, h:h + kH, w:w + kW] * weight).sum(axis=(3, 2, 1), out=out_puts[sample, :, h, w])
-    if need_bias:
-        for out_ch in range(out_channel):
-            out_puts[:, out_ch, :, :] += bias[out_ch]
-
-    return out_puts
-
-
-# inputs的梯度
-def _Conv2dBackward0(output_grad, weight):
-    weight_shape = weight.shape
-    padding = weight_shape[2] - 1, weight_shape[3] - 1
-    weight_0 = np.swapaxes(weight, axis1=0, axis2=1)
-    weight_1 = np.flip(weight_0, (2, 3))
-    return ndarray_conv2d(output_grad, weight_1, padding=padding)
-
-
-def _Conv2dBackward1(inputs: np.ndarray, outputs: np.ndarray):
-    mini_batch, in_channel, iH, iW = inputs.shape
-    mini_batch, out_channel, oH, oW = outputs.shape
-    assert iH >= oH and iW >= oW, "the input'size must >= output'size "
-
-    kH = iH - oH + 1
-    kW = iW - oW + 1
-    weight_grad = np.empty((out_channel, in_channel, kH, kW))
-
-    for out_ch in range(out_channel):
-        for in_ch in range(in_channel):
-            for h in range(kH):
-                for w in range(kW):
-                    weight_grad[out_ch, in_ch, h, w] = \
-                        (inputs[:, in_ch, h:h + oH, w:w + oW] * outputs[:, out_ch, :, :]).sum()
-
-    return weight_grad
+#################################
+# ##TODO conv2d_transposed
+# def conv2d_transposed(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None):
+#    pass

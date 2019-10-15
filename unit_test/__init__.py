@@ -23,13 +23,22 @@ def to_torch(tensor_list):
     return torch_tensor
 
 
-def check(a, b, eps=1e-8):
-    grad_0 = a.grad.numpy()
-    grad_1 = b.grad.numpy()
-    result = np.abs(grad_1 - grad_0) < eps
-    assert result.prod(), ("TEST FAILED",
-                           grad_0,
-                           grad_1)
+def check(a, b, eps=1e-8, grad=True):
+
+    if grad:
+        grad_0 = a.grad.numpy()
+        grad_1 = b.grad.numpy()
+        result = np.abs(grad_1 - grad_0)/grad_0 < eps
+    else:
+        if isinstance(a, torch.Tensor):
+            grad_0 = a.data.numpy()
+            grad_1 = b.numpy()
+        else:
+            grad_0 = a.numpy()
+            grad_1 = b.data.numpy()
+        result = np.abs(grad_1 - grad_0)/grad_0 < eps
+    assert result.prod(), ("TEST FAILED",eps,
+                           np.abs(grad_1 - grad_0).max())
 
 
 class Timer:
@@ -38,7 +47,9 @@ class Timer:
         self._toc = time.time()
 
     @staticmethod
-    def show_time(elapsed_time):
+    def show_time(elapsed_time, prefix=None):
+        if prefix:
+            print(prefix, end=' ')
         if elapsed_time < 0.001:
             print("elapsed time: %.2f" % (elapsed_time * 1000 * 1000), ' us')
         elif elapsed_time < 1:

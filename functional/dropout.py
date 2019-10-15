@@ -1,5 +1,6 @@
 from ..tensor import Tensor, np
 
+
 def dropout(inputs, p=0.5, training=True):
     """
     每个元素按照努利分布概率分布置为零
