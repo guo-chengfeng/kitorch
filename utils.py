@@ -136,8 +136,10 @@ def zeros_like(t: Tensor, requires_grad: bool = False, trimmean=False,
 
 def rand(*args, requires_grad: bool = False,
          shift=None, scale=None, name: str = None,
-         trimmean=False) -> Tensor:
+         trimmean=False,dtype = None) -> Tensor:
     data = np.random.rand(*args)
+    if dtype:
+        data = data.astype(dtype=dtype)
 
     if shift:
         data += shift

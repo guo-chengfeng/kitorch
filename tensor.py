@@ -226,8 +226,9 @@ class Tensor(TensorBase):
     def swapaxes(self, axis1, axis2):
         return swapaxes(self, axis1, axis2)
 
-    def transpose(self,axis1,axis2):
-        return transpose(self,axis1,axis2)
+    def transpose(self, axis1, axis2):
+        return transpose(self, axis1, axis2)
+
 
 def SilceBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     grad_data = np.zeros_like(t.data)
@@ -331,17 +332,12 @@ def sigmoid(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ReluBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    data = args[0]
-    grad_data = np.zeros_like(data)
-    grad_data[data > 0] = 1
-    grad_data = grad.data * grad_data
-    return Tensor(grad_data)
+def ReluBackward(output_grad: 'Tensor', t: 'Tensor', args: []) -> 'Tensor':
+    return Tensor((args[0] >= 0) * output_grad.data)
 
 
 def relu(t: 'Tensor') -> 'Tensor':
-    data = t.data.copy()
-    data[t.data < 0] = 0
+    data = np.maximum(0, t.data)
     requires_grad = t.requires_grad
     depends_on = []
     grad_fn = ReluBackward
@@ -878,7 +874,8 @@ def swapaxes(t: 'Tensor', axis1, axis2):
 def TransposeBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     return Tensor(np.transpose(grad.data, args[0]))
 
-def transpose(t: Tensor,axis1,axis2) -> 'Tensor':
+
+def transpose(t: Tensor, axis1, axis2) -> 'Tensor':
     axes = [i for i in range(t.dim)]
     axes[axis1] = axis2
     axes[axis2] = axis1
