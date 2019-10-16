@@ -10,7 +10,7 @@ class Conv2d(Layer):
     卷积层
     """
 
-    def __init__(self, in_channel, out_channel, kernel_size, bias=True, padding=None):
+    def __init__(self, in_channel, out_channel, kernel_size, bias=True, stride=None,padding=None):
         super(Conv2d, self).__init__()
         self.in_channel = in_channel
         self.out_channel = out_channel
@@ -39,14 +39,22 @@ class Conv2d(Layer):
             else:
                 self.padding = padding
         else:
-            self.padding = None
+            self.padding = (0,0)
+
+        if stride:
+            if isinstance(stride, int):
+                self.stride = (stride, stride)
+            else:
+                self.stride = stride
+        else:
+            self.stride = (1,1)
 
     def forward(self, x: Tensor):
-        return F.conv2d(x, self.weight, self.bias, self.padding)
+        return F.conv2d(x, self.weight, self.bias, stride=self.stride,padding=self.padding)
 
     def __repr__(self):
         string = "Conv2d(in_channel=%s, out_channel=%s, kernel_size=%s" % (self.in_channel,
-                                                                         self.out_channel, self.kernel_size)
+                                                                           self.out_channel, self.kernel_size)
         if self.need_bias:
             string += ",bias=True"
         if self.padding:

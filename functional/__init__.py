@@ -1,5 +1,5 @@
 try:
-    from .conv_by_torch import conv2d
+    from .conv_torch import conv2d
 except:
     from .conv import conv2d
 
