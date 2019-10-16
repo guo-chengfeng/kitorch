@@ -8,8 +8,7 @@
 
 The core code of conv2d_forward is torch.conv2d.
 Then I use conv2d_forward to calculate the output, input's grad and weight's grad
-It is fastest, but low precision, especially weight's grad.
-It need lots and lots of sum to calculate weight's grad, error accumulate in the process
+It is faster than conv_by_torch
 """
 
 import numpy as np
@@ -61,20 +60,22 @@ def conv2d_forward(x, w, b=None, stride=(1, 1), padding=(0, 0)):
     else:
         x_padded = x
 
+
     if b is not None:
-        bias = torch.Tensor(b)
+        bias = torch.tensor(b)
+
     else:
         bias = None
     try:
-        out = torch.conv2d(torch.Tensor(x_padded),
-                           torch.Tensor(w),
+        out = torch.conv2d(torch.tensor(x_padded),
+                           torch.tensor(w),
                            bias=bias, stride=stride)
     except Exception:
-        out = torch.conv2d(torch.Tensor(x_padded),
-                           torch.Tensor(w.copy()),
+        out = torch.conv2d(torch.tensor(x_padded),
+                           torch.tensor(w.copy()),
                            bias=bias, stride=stride)
 
-    return out
+    return out.numpy()
 
 
 def conv2d_backward(dout, input, input_requires_grad,

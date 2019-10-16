@@ -6,6 +6,7 @@ import time
 from . import check, to_torch, Timer
 import numpy as np
 
+
 def main_conv(input, weight, bias=None, stride=None, padding=None):
     start = time.time()
     out = conv2d(input, weight, bias=bias, stride=stride, padding=padding)
@@ -26,20 +27,21 @@ def main_conv(input, weight, bias=None, stride=None, padding=None):
         t_out.backward(v)
 
     Timer.show_time((time.time() - start), "torch conv2d")
-    check(out, t_out, eps=1e-4, grad=False)
 
-    check(input, t_input, eps=1e-4)
-    check(weight, t_weight, eps=1e-4)
+    check(out, t_out, eps=1e-4, grad=False, prefix="out", print_max=True)
+
+    check(input, t_input, eps=1e-4, prefix="input grad", print_max=True)
+    check(weight, t_weight, eps=1e-4, prefix="weight grad", print_max=True)
     if bias:
-        check(bias, t_bias)
+        check(bias, t_bias, prefix="bias grad", print_max=True)
 
 
 class Conv2dTest(unittest.TestCase):
     def test_1(self):
         print("\n test_1: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (5, 5)
         padding = (0, 0)
@@ -51,9 +53,9 @@ class Conv2dTest(unittest.TestCase):
 
     def test_2(self):
         print("\n test_2: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (4, 4)
         padding = (1, 2)
@@ -65,9 +67,9 @@ class Conv2dTest(unittest.TestCase):
 
     def test_4(self):
         print("\n test_3: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (4, 4)
         padding = (0, 0)
@@ -79,9 +81,9 @@ class Conv2dTest(unittest.TestCase):
 
     def test_4(self):
         print("\n test_4: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (4, 4)
         padding = (1, 2)

@@ -9,11 +9,9 @@ from . import check, to_torch, Timer
 def main_conv(input, weight, bias=None, stride=None, padding=None):
     start = time.time()
     out = conv2d(input, weight, bias=bias, stride=stride, padding=padding)
-    Timer.show_time((time.time() - start), "Numpy conv2d forward")
     g = rand_like(out)
-    start = time.time()
     out.backward(g)
-    Timer.show_time((time.time() - start), "Numpy conv2d backward")
+    Timer.show_time((time.time() - start), "Numpy conv2d")
 
     if bias:
         t_input, t_weight, t_bias, v = to_torch([input, weight, bias, g])
@@ -38,9 +36,9 @@ def main_conv(input, weight, bias=None, stride=None, padding=None):
 class Conv2dTest(unittest.TestCase):
     def test_1(self):
         print("\n test_1: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (5, 5)
         padding = (0, 0)

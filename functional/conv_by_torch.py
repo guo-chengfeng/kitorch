@@ -9,6 +9,9 @@
 
 The core code of conv2d_forward is from https://github.com/cthorey/CS231/blob/master/assignment2/
 and the input's grad is calculated by torch.conv_transpose2d
+
+It is faster than conv
+
 """
 
 
@@ -165,8 +168,8 @@ def conv2d_backward(dout, input_requires_grad, input_shape,
         # dx_cols = weight.reshape(num_filters, -1).T.dot(dout_reshaped)
         # dx = col2im_indices(dx_cols, input_shape, kH, kW, padding, stride)
 
-        dx = torch.conv_transpose2d(torch.Tensor(dout),
-                                    torch.Tensor(weight), bias=None, stride=stride, padding=padding).numpy()
+        dx = torch.conv_transpose2d(torch.tensor(dout),
+                                    torch.tensor(weight), bias=None, stride=stride, padding=padding).numpy()
 
     return dx, dw
 

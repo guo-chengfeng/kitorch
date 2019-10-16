@@ -23,12 +23,14 @@ def to_torch(tensor_list):
     return torch_tensor
 
 
-def check(a, b, eps=1e-8, grad=True):
+def check(a, b, eps=1e-8, grad=True,prefix = None, print_max=False):
+    if prefix:
+        print(prefix,end=' ')
 
     if grad:
         grad_0 = a.grad.numpy()
         grad_1 = b.grad.numpy()
-        result = np.abs(grad_1 - grad_0)/grad_0 < eps
+
     else:
         if isinstance(a, torch.Tensor):
             grad_0 = a.data.numpy()
@@ -36,9 +38,14 @@ def check(a, b, eps=1e-8, grad=True):
         else:
             grad_0 = a.numpy()
             grad_1 = b.data.numpy()
-        result = np.abs(grad_1 - grad_0)/grad_0 < eps
-    assert result.prod(), ("TEST FAILED",eps,
-                           np.abs(grad_1 - grad_0).max())
+
+    diff = np.abs(grad_1 - grad_0) / grad_0
+    result = diff < eps
+    if print_max:
+        print('max relative diff ',diff.max())
+
+    assert result.prod(), ("TEST FAILED","eps=",eps,"diff=",diff.max())
+
 
 
 class Timer:

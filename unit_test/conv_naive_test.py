@@ -38,9 +38,9 @@ def main_conv(input, weight, bias=None,padding=None):
 class Conv2dTest(unittest.TestCase):
     def test_1(self):
         print("\n test_1: 卷积核5X5")
-        batch_size = 128
+        batch_size = 512
         in_channel = 10
-        iH, iW = (28, 28)
+        iH, iW = (32, 32)
         out_channel = 20
         kH, kW = (5, 5)
         padding = (0, 0)

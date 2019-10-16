@@ -7,6 +7,7 @@
 @desc: An implementation of the conv2d forward and backward
 
 The core code of conv2d_forward is from https://github.com/cthorey/CS231/blob/master/assignment2/
+It is faster than conv_naive
 
 """
 
