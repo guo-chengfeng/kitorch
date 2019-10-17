@@ -12,7 +12,7 @@ This is a naive version. [[SLOW]]
 
 
 import numpy as np
-from ..tensor import Tensor, Edge
+from tensor import Tensor, Edge
 
 
 def Conv2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':

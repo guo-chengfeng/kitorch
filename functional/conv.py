@@ -167,7 +167,7 @@ def conv2d_backward(dout, input_requires_grad, input_shape,
 
         # 460ms
         if stride[0] > 1 or stride[1] > 1:
-            _dout = np.zeros((N, C, H * stride[0] - 1, W * stride[1] - 1))
+            _dout = np.zeros((N, C, (H - 1) * stride[0] + 1, (W - 1) * stride[1] + 1))
             index_i = np.repeat(np.arange(0, H) * stride[0], W)
             index_j = np.tile(np.arange(0, W) * stride[1], H)
             _dout[:, :, index_i, index_j] = dout.reshape(N, C, -1)
@@ -230,7 +230,8 @@ def conv2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None) 
 
     return Tensor(data, requires_grad, depends_on, grad_fn, is_simple=False)
 
+
 #################################
 # ##TODO conv2d_transposed
-# def conv2d_transposed(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None):
-#    pass
+def conv_transpose2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None):
+    raise NotImplementedError

@@ -1,4 +1,4 @@
-from ..functional.conv_by_torch import conv2d
+from functional.convs.conv_by_torch import conv2d
 from ..utils import rand, rand_like
 import unittest
 import torch

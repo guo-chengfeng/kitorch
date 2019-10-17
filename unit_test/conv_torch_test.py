@@ -28,70 +28,78 @@ def main_conv(input, weight, bias=None, stride=None, padding=None):
 
     Timer.show_time((time.time() - start), "torch conv2d")
 
-    check(out, t_out, eps=1e-4, grad=False, prefix="out", print_max=True)
+    check(out, t_out, grad=False, prefix="out", print_max=True)
 
-    check(input, t_input, eps=1e-4, prefix="input grad", print_max=True)
-    check(weight, t_weight, eps=1e-4, prefix="weight grad", print_max=True)
+    check(input, t_input, prefix="input grad", print_max=True)
+    check(weight, t_weight, prefix="weight grad", print_max=True)
     if bias:
         check(bias, t_bias, prefix="bias grad", print_max=True)
 
 
+def main(i, k, p, s):
+    print("\n i,k,p,s = %s,%s,%s,%s"%(i, k, p, s))
+    batch_size = 2
+    in_channel = 10
+    iH, iW = (i, i)
+    out_channel = 20
+    kH, kW = (k, k)
+    padding = (p, p)
+    stride = (s, s)
+    input = rand(batch_size, in_channel, iH, iW, requires_grad=True)
+    weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
+    bias = rand(out_channel, requires_grad=True)
+    main_conv(input, weight, bias=bias, padding=padding, stride=stride)
+
+
 class Conv2dTest(unittest.TestCase):
-    def test_1(self):
-        print("\n test_1: 卷积核5X5")
-        batch_size = 512
-        in_channel = 10
-        iH, iW = (32, 32)
-        out_channel = 20
-        kH, kW = (5, 5)
-        padding = (0, 0)
-        stride = (1, 1)
-        input = rand(batch_size, in_channel, iH, iW, requires_grad=True)
-        weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
-        bias = rand(out_channel, requires_grad=True)
-        main_conv(input, weight, bias=bias, padding=padding, stride=stride)
+    def test_0(self):
+        for i in range(15, 25):
+            for k in range(2, 5):
+                for p in range(0, 6):
+                    for s in range(1, 10):
+                        main(i, k, p, s)
 
-    def test_2(self):
-        print("\n test_2: 卷积核5X5")
-        batch_size = 512
-        in_channel = 10
-        iH, iW = (32, 32)
-        out_channel = 20
-        kH, kW = (4, 4)
-        padding = (1, 2)
-        stride = (1, 1)
-        inputs = rand(batch_size, in_channel, iH, iW, requires_grad=True)
-        weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
-        bias = rand(out_channel, requires_grad=True)
-        main_conv(inputs, weight, bias=bias, padding=padding, stride=stride)
-
-    def test_4(self):
-        print("\n test_3: 卷积核5X5")
-        batch_size = 512
-        in_channel = 10
-        iH, iW = (32, 32)
-        out_channel = 20
-        kH, kW = (4, 4)
-        padding = (0, 0)
-        stride = (2, 2)
-        inputs = rand(batch_size, in_channel, iH, iW, requires_grad=True)
-        weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
-        bias = rand(out_channel, requires_grad=True)
-        main_conv(inputs, weight, bias=bias, padding=padding, stride=stride)
-
-    def test_4(self):
-        print("\n test_4: 卷积核5X5")
-        batch_size = 512
-        in_channel = 10
-        iH, iW = (32, 32)
-        out_channel = 20
-        kH, kW = (4, 4)
-        padding = (1, 2)
-        stride = (2, 2)
-        inputs = rand(batch_size, in_channel, iH, iW, requires_grad=True)
-        weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
-        bias = rand(out_channel, requires_grad=True)
-        main_conv(inputs, weight, bias=bias, padding=padding, stride=stride)
+    # def test_1(self):
+    #     print("\n test_1 测试效率: 卷积核5X5")
+    #     batch_size = 128
+    #     in_channel = 10
+    #     iH, iW = (32, 32)
+    #     out_channel = 20
+    #     kH, kW = (5, 5)
+    #     padding = (1, 1)
+    #     stride = (1, 1)
+    #     input = rand(batch_size, in_channel, iH, iW, requires_grad=True)
+    #     weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
+    #     bias = rand(out_channel, requires_grad=True)
+    #     main_conv(input, weight, bias=bias, padding=padding, stride=stride)
+    #
+    # def test_1(self):
+    #     print("\n test_1 测试效率: 卷积核5X5")
+    #     batch_size = 512
+    #     in_channel = 10
+    #     iH, iW = (32, 32)
+    #     out_channel = 20
+    #     kH, kW = (5, 5)
+    #     padding = (1, 1)
+    #     stride = (1, 1)
+    #     input = rand(batch_size, in_channel, iH, iW, requires_grad=True)
+    #     weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
+    #     bias = rand(out_channel, requires_grad=True)
+    #     main_conv(input, weight, bias=bias, padding=padding, stride=stride)
+    #
+    # def test_2(self):
+    #     print("\n test_2 测试效率: 卷积核5X5")
+    #     batch_size = 512
+    #     in_channel = 10
+    #     iH, iW = (32, 32)
+    #     out_channel = 20
+    #     kH, kW = (4, 4)
+    #     padding = (1, 2)
+    #     stride = (2, 3)
+    #     inputs = rand(batch_size, in_channel, iH, iW, requires_grad=True)
+    #     weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
+    #     bias = rand(out_channel, requires_grad=True)
+    #     main_conv(inputs, weight, bias=bias, padding=padding, stride=stride)
 
 
 if __name__ == '__main__':

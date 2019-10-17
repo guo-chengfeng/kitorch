@@ -43,7 +43,7 @@ class Conv2dTest(unittest.TestCase):
         out_channel = 20
         kH, kW = (5, 5)
         padding = (0, 0)
-        stride = (1, 1)
+        stride = (3,3)
         input = rand(batch_size, in_channel, iH, iW, requires_grad=True)
         weight = rand(out_channel, in_channel, kH, kW, requires_grad=True)
         bias = rand(out_channel, requires_grad=True)

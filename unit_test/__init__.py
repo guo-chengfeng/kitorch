@@ -11,7 +11,7 @@
 """
 import torch
 import numpy as np
-import time
+from ..utils import Timer
 
 
 def to_torch(tensor_list):
@@ -23,9 +23,9 @@ def to_torch(tensor_list):
     return torch_tensor
 
 
-def check(a, b, eps=1e-8, grad=True,prefix = None, print_max=False):
+def check(a, b, eps=1e-8, grad=True, prefix=None, print_max=False):
     if prefix:
-        print(prefix,end=' ')
+        print(prefix, end=' ')
 
     if grad:
         grad_0 = a.grad.numpy()
@@ -39,39 +39,12 @@ def check(a, b, eps=1e-8, grad=True,prefix = None, print_max=False):
             grad_0 = a.numpy()
             grad_1 = b.data.numpy()
 
-    diff = np.abs(grad_1 - grad_0) / grad_0
+    diff = np.abs(grad_1 - grad_0) / (grad_0+eps)
     result = diff < eps
     if print_max:
-        print('max relative diff ',diff.max())
+        print('max relative diff ', diff.max())
 
-    assert result.prod(), ("TEST FAILED","eps=",eps,"diff=",diff.max())
-
-
-
-class Timer:
-    def __init__(self):
-        self._tic = time.time()
-        self._toc = time.time()
-
-    @staticmethod
-    def show_time(elapsed_time, prefix=None):
-        if prefix:
-            print(prefix, end=' ')
-        if elapsed_time < 0.001:
-            print("elapsed time: %.2f" % (elapsed_time * 1000 * 1000), ' us')
-        elif elapsed_time < 1:
-            print("elapsed time: %.2f" % (elapsed_time * 1000), ' ms')
-        else:
-            print("elapsed time: %.2f" % elapsed_time, ' s')
-
-    @property
-    def tic(self):
-        self._tic = time.time()
-
-    @property
-    def toc(self):
-        self._toc = time.time()
-        self.show_time(elapsed_time=self._toc - self._tic)
+    assert result.prod(), ("TEST FAILED", "eps=", eps, "diff=", diff.max(),grad_0)
 
 
 timer = Timer()

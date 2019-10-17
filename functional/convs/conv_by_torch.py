@@ -1,4 +1,3 @@
-
 """
 @author:  guo_chengfeng
 @contact: chf_guo@163.com
@@ -14,13 +13,15 @@ It is faster than conv
 
 """
 
-
 import numpy as np
-from ..tensor import Tensor, Edge
-from ..utils import zeros
+from tensor import Tensor, Edge
+from utils import zeros
 import time
 import torch
+
 step_in = zeros(1, requires_grad=True)
+
+
 def bi_tuple(num):
     """convert a int to tuple of (int,int)"""
     if isinstance(num, int):

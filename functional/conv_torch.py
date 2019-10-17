@@ -19,7 +19,7 @@ import torch
 step_in = zeros(1, requires_grad=True)
 
 
-def bi_tuple(num):
+def to_pair(num):
     """convert a int to tuple of (int,int)"""
     if isinstance(num, int):
         return num, num
@@ -27,7 +27,48 @@ def bi_tuple(num):
         return num
 
 
-def conv2d_forward(x, w, b=None, stride=(1, 1), padding=(0, 0)):
+# 开端一定padding
+# 末端根据stride确定是否padding
+def repadding(features, pad, k_length, stride):
+    out_f = (features + 2 * pad - k_length) // stride + 1
+    dilation_f = (out_f - 1) * stride + k_length - pad
+    pad0 = pad
+    pad1 = int(dilation_f - features)
+    pad1, unused = (pad1, 0) if pad1 > 0 else (0, -pad1)
+    return pad0, pad1, unused
+
+
+def conv2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None) -> Tensor:
+    requires_grad = input.requires_grad or weight.requires_grad
+    stride = (1, 1) if stride is None else to_pair(stride)
+    padding = (0, 0) if padding is None else to_pair(padding)
+    N, C, H, W = input.shape
+    _, _, kH, kW = weight.shape
+    padding = repadding(H, padding[0], kH, stride[0]), \
+              repadding(H, padding[1], kH, stride[1])
+
+    if bias is not None:
+        data = conv2d_forward(input.data, weight.data, bias.data, stride, padding)
+        requires_grad = requires_grad or bias.requires_grad
+    else:
+        data = conv2d_forward(input.data, weight.data, None, stride, padding, )
+
+    grad_fn = Conv2dBackward
+    depends_on = []
+    if input.requires_grad:
+        depends_on.append(Edge(input, ['input', weight.data, stride, padding]))
+
+    if weight.requires_grad:
+        depends_on.append(Edge(weight, ['weight', input.data, stride, padding]))
+
+    if bias is not None:
+        if bias.requires_grad:
+            depends_on.append(Edge(bias, ['bias']))
+
+    return Tensor(data, requires_grad, depends_on, grad_fn)
+
+
+def conv2d_forward(x, w, b=None, stride=(1, 1), padding=((0, 0, 0), (0, 0, 0)), forward_type=True):
     """
     Forward pass for a convolutional layer.
     The input consists of N data points, each with C channels, height H and
@@ -49,128 +90,169 @@ def conv2d_forward(x, w, b=None, stride=(1, 1), padding=(0, 0)):
     """
     Faster implementation [[[NOT MINE]]]
     """
-    N, C, H, W = x.shape
-    _, _, kH, kW = w.shape
-    assert (H + 2 * padding[0] - kH) % stride[0] == 0
-    assert (W + 2 * padding[1] - kW) % stride[1] == 0
 
-    if padding[0] > 0 or padding[1] > 0:
-        p = padding
-        x_padded = np.pad(x, ((0, 0), (0, 0), (p[0], p[0]), (p[1], p[1])), mode='constant')
+    # This is not necessary
+    # assert (H + 2 * padding[0] - kH) % stride[0] == 0
+    # assert (W + 2 * padding[1] - kW) % stride[1] == 0
+    x_padded = x
+    if forward_type:
+        pad00, pad01, _ = padding[0]
+        pad10, pad11, _ = padding[1]
+        if pad00 or pad01 or pad10 or pad11:
+            x_padded = np.pad(x, ((0, 0), (0, 0), (pad00, pad01), (pad10, pad11)), mode='constant')
     else:
-        x_padded = x
-
+        pad0, pad1 = padding
+        if pad0 or pad1:
+            x_padded = np.pad(x, ((0, 0), (0, 0), (pad0, pad0), (pad1, pad1)), mode='constant')
 
     if b is not None:
         bias = torch.tensor(b)
 
     else:
         bias = None
-    try:
-        out = torch.conv2d(torch.tensor(x_padded),
-                           torch.tensor(w),
-                           bias=bias, stride=stride)
-    except Exception:
-        out = torch.conv2d(torch.tensor(x_padded),
-                           torch.tensor(w.copy()),
-                           bias=bias, stride=stride)
 
-    return out.numpy()
+    out = torch.conv2d(torch.tensor(x_padded),
+                       torch.tensor(w),
+                       bias=bias, stride=stride)
+    return out.data.numpy()
 
 
-def conv2d_backward(dout, input, input_requires_grad,
-                    weight_requires_grad, weight,
-                    stride, padding):
-    """
-    Backward pass for a convolutional layer.
-    Inputs:
-    - dout: Upstream derivatives.
-    - cache: A tuple of (x, w, bi, conv_param) as in conv_forward
-    Returns a tuple of:
-    - dx: Gradient with respect to x
-    - dw: Gradient with respect to w
-    - db: Gradient with respect to b
-    """
-    dx, dw = None, None
-    _, _, kH, kW = weight.shape
-    N, C, H, W = dout.shape
+def Conv2dBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
+    btype = args[0]
+    if btype == 'bias':
+        return Tensor(np.sum(grad.data, axis=(0, 2, 3)))
 
-    if stride[0] > 1 or stride[1] > 1:
-        _dout = np.zeros((N, C, H * stride[0] - 1, W * stride[1] - 1))
+    grad_data = grad.data
+    N, C, H, W = grad_data.shape
+    stride = args[2]
+    padding = args[3]
+    pad00, pad01, unused0 = padding[0]
+    pad10, pad11, unused1 = padding[1]
+
+    if stride[0] or stride[1]:
+        _grad_data = np.zeros((N, C, (H - 1) * stride[0] + 1, (W - 1) * stride[1] + 1))
         index_i = np.repeat(np.arange(0, H) * stride[0], W)
         index_j = np.tile(np.arange(0, W) * stride[1], H)
-        _dout[:, :, index_i, index_j] = dout.reshape(N, C, -1)
-    else:
-        _dout = dout
+        _grad_data[:, :, index_i, index_j] = grad_data.reshape(N, C, -1)
+        grad_data = _grad_data
 
-    if weight_requires_grad:
-        if padding[0] > 0 or padding[1] > 0:
-            p = padding
-            x_padded = np.pad(input, ((0, 0), (0, 0), (p[0], p[0]), (p[1], p[1])), mode='constant')
-        else:
-            x_padded = input
+    if btype == 'weight':
+        input = args[1]
+        _, _, kH, kW = t.shape
+        x_padded = input
+        if pad00 or pad01 or pad10 or pad11:
+            x_padded = np.pad(input, ((0, 0), (0, 0), (pad00, pad01), (pad10, pad11)), mode='constant')
 
         x_padded = np.swapaxes(x_padded, axis1=0, axis2=1)
-        __dout = np.swapaxes(_dout, axis1=0, axis2=1)
-        dw = conv2d_forward(x_padded, __dout, stride=(1, 1), padding=(0, 0))
+        grad_data = np.swapaxes(grad_data, axis1=0, axis2=1)
+        dw = conv2d_forward(x_padded, grad_data, stride=(1, 1), padding=(0, 0), forward_type=False)
         dw = np.swapaxes(dw, axis1=0, axis2=1)
+        if unused0 or unused1:
+            unused0 = -unused0 if unused0 else None
+            unused1 = -unused1 if unused1 else None
+            return Tensor(dw[:, :, 0:unused0, 0:unused1])
 
-    if input_requires_grad:
-        _weight = np.swapaxes(weight, axis1=0, axis2=1)
-        _weight = np.flip(_weight, (2, 3))
-        dx = conv2d_forward(_dout, _weight, stride=(1, 1), padding=(kH - 1, kW - 1))
-        if padding[0] > 0 and padding[1] > 0:
-            dx = dx[:, :, padding[0]:-padding[0], padding[1]:-padding[1]]
+        return Tensor(dw)
 
-        elif padding[0] == 0 and padding[1] > 0:
-            dx = dx[:, :, :, padding[1]:-padding[1]]
+    # btype == 'input'
+    weight = args[1]
+    _, _, kH, kW = weight.shape
+    _weight = np.swapaxes(weight, axis1=0, axis2=1)
+    _weight = np.flip(_weight, (2, 3)).copy()
+    # _weight必须copy,不然可能报：
+    # ValueError: some of the strides of a given numpy array are negative
+    # 的错误
 
-        elif padding[0] > 0 and padding[1] == 0:
-            dx = dx[:, :, padding[0]:-padding[0], :]
-    return dx, dw
+    dx = conv2d_forward(grad_data, _weight, stride=(1, 1), padding=(kH - 1, kW - 1), forward_type=False)
 
+    if unused0 or unused1:
+        dx = np.pad(dx, ((0, 0), (0, 0), (0, unused0), (0, unused1)), mode='constant')
 
-def Conv2dBackward(grad: 'Tensor', depends_on) -> 'Tensor':
-    edge = depends_on[0]
-    input, weight, bias, stride, padding = edge.args
-    tensor_grad = []
-    if bias is not None:
-        tensor_grad.append((bias,
-                            Tensor(np.sum(grad.data, axis=(0, 2, 3)))))
+    if pad00 or pad01:
+        pad01 = -pad01 if pad01 else None
+        pad11 = -pad11 if pad11 else None
+        dx = dx[:, :, pad00:pad01, pad10:pad11]
 
-    input_requires_grad = input.requires_grad
-    weight_requires_grad = weight.requires_grad
-    if input_requires_grad or weight_requires_grad:
-        dx, dw = conv2d_backward(grad.data, input.data,
-                                 input_requires_grad,
-                                 weight_requires_grad, weight.data,
-                                 stride, padding)
-        if weight_requires_grad:
-            tensor_grad.append((weight, Tensor(dw)))
-        if input_requires_grad:
-            tensor_grad.append((input, Tensor(dx)))
-    return tensor_grad
+    return Tensor(dx)
 
-
-def conv2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None) -> Tensor:
-    requires_grad = input.requires_grad or weight.requires_grad
-    _stride = (1, 1) if stride is None else bi_tuple(stride)
-    _padding = (0, 0) if padding is None else bi_tuple(padding)
-
-    if bias is not None:
-        data = conv2d_forward(input.data, weight.data, bias.data, _stride, _padding)
-        requires_grad = requires_grad or bias.requires_grad
-    else:
-        data = conv2d_forward(input.data, weight.data, None, _padding, _stride)
-
-    grad_fn = Conv2dBackward
-    depends_on = []
-    if requires_grad:
-        depends_on.append(Edge(step_in, [input, weight, bias, stride, _padding]))
-
-    return Tensor(data, requires_grad, depends_on, grad_fn, is_simple=False)
 
 #################################
-# ##TODO conv2d_transposed
-# def conv2d_transposed(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None):
-#    pass
+def conv_transpose2d(input: Tensor, weight: Tensor, stride=1, padding=0, output_padding=0):
+    """
+    :param input: minibatch , in_channels , iH , iW
+    :param weight: in_channels,out_channels,kH , kW
+    :param stride:
+    :param padding:
+    :param output_padding:
+    :return:
+    """
+
+    stride = (1, 1) if stride is None else to_pair(stride)
+    padding = (0, 0) if padding is None else to_pair(padding)
+    output_padding = (0, 0) if output_padding is None else to_pair(output_padding)
+    _, _, kH, kW = weight.shape
+    assert output_padding[0] < stride[0] and output_padding[1] < stride[1], \
+        "output padding must be smaller than stride,but got output_padding=%s and stride=%s" % (output_padding, stride)
+    assert kH > padding[1] and kW > padding[1], \
+        "padding must be smaller than kernel size, but got kernel_size=%s and padding=%s" % ((kH, kW), padding)
+
+    N, C, H, W = input.shape
+    if stride[0] > 1 or stride[1] > 1:
+        inf_input = np.zeros((N, C, (H - 1) * stride[0] + 1, (W - 1) * stride[1] + 1))
+        index_i = np.repeat(np.arange(0, H) * stride[0], W)
+        index_j = np.tile(np.arange(0, W) * stride[1], H)
+        inf_input[:, :, index_i, index_j] = input.data.reshape(N, C, -1)
+    else:
+        inf_input = input.data
+
+    _, _, kH, kW = weight.shape
+
+    pad00 = kH - 1 - padding[0]
+    pad01 = pad00 + output_padding[0]
+    pad10 = kW - 1 - padding[1]
+    pad11 = pad10 + output_padding[1]
+
+    if pad00 or pad01 or pad10 or pad11:
+        x_padded = np.pad(inf_input, ((0, 0), (0, 0), (pad00, pad01), (pad10, pad11)),
+                          mode='constant')
+    else:
+        x_padded = inf_input
+
+    _weight = np.swapaxes(weight.data, axis1=0, axis2=1)
+    _weight = np.flip(_weight, (2, 3)).copy()
+
+    out = torch.conv2d(torch.tensor(x_padded),
+                       torch.tensor(_weight),
+                       bias=None)
+
+    data = out.numpy()
+    requires_grad = input.requires_grad or weight.requires_grad
+    grad_fn = Conv2dTransposedBackward
+    depends_on = []
+
+    if input.requires_grad:
+        depends_on.append(Edge(input, ['input', weight.data, stride, padding]))
+
+    if weight.requires_grad:
+        depends_on.append(Edge(weight, ['weight', x_padded, stride, padding]))
+
+    return Tensor(data, requires_grad, depends_on, grad_fn)
+
+
+def Conv2dTransposedBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
+    btype, x_or_w, stride, padding = args
+    if btype == 'input':
+        x_grad = torch.conv1d(torch.tensor(grad.data),
+                              torch.tensor(x_or_w), bias=None,
+                              stride=stride, padding=padding)
+
+        return Tensor(x_grad.numpy())
+
+    x_padded = np.swapaxes(x_or_w, axis1=0, axis2=1)
+    grad_data = np.swapaxes(grad.data, axis1=0, axis2=1)
+
+    w_grad = torch.conv1d(torch.tensor(x_padded),
+                          torch.tensor(grad_data), bias=None)
+    w_grad = w_grad.numpy()
+    w_grad = np.flip(w_grad, (2, 3))
+    return Tensor(w_grad)
