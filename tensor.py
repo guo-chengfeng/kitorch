@@ -332,12 +332,17 @@ def sigmoid(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ReluBackward(output_grad: 'Tensor', t: 'Tensor', args: []) -> 'Tensor':
-    return Tensor((args[0] >= 0) * output_grad.data)
+def ReluBackward(output_grad: 'Tensor', t: 'Tensor', other_args: []) -> 'Tensor':
+    data = other_args[0]
+    grad_data = np.zeros_like(data)
+    grad_data[data > 0] = 1
+    grad_data = output_grad.data * grad_data
+    return Tensor(grad_data)
 
 
 def relu(t: 'Tensor') -> 'Tensor':
-    data = np.maximum(0, t.data)
+    data = t.data.copy()
+    data[t.data < 0] = 0
     requires_grad = t.requires_grad
     depends_on = []
     grad_fn = ReluBackward

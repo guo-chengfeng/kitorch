@@ -9,9 +9,45 @@
 @version: 0.1
 @desc:
 """
+import time
 import numpy as np
 from typing import List
-from .tensor import Edge,Tensor
+from .tensor import Edge, Tensor
+
+
+class Timer:
+    def __init__(self):
+        self._tic = time.time()
+        self._toc = time.time()
+
+    @staticmethod
+    def show_time(elapsed_time, prefix=None):
+        if prefix:
+            print(prefix, end=' ')
+        if elapsed_time < 0.001:
+            print("elapsed time: %.2f" % (elapsed_time * 1000 * 1000), ' us')
+        elif elapsed_time < 1:
+            print("elapsed time: %.2f" % (elapsed_time * 1000), ' ms')
+        else:
+            print("elapsed time: %.2f" % elapsed_time, ' s')
+
+    @property
+    def tic(self):
+        self._tic = time.time()
+
+    @property
+    def toc(self):
+        self._toc = time.time()
+        self.show_time(elapsed_time=self._toc - self._tic)
+
+    def print_time(self, prefix, update_tic=False):
+        self._toc = time.time()
+        self.show_time(elapsed_time=self._toc - self._tic, prefix=prefix)
+        if update_tic:
+            self._tic = time.time()
+
+
+timer = Timer()
 
 
 def CatBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
@@ -136,7 +172,7 @@ def zeros_like(t: Tensor, requires_grad: bool = False, trimmean=False,
 
 def rand(*args, requires_grad: bool = False,
          shift=None, scale=None, name: str = None,
-         trimmean=False,dtype = None) -> Tensor:
+         trimmean=False, dtype=None) -> Tensor:
     data = np.random.rand(*args)
     if dtype:
         data = data.astype(dtype=dtype)
