@@ -1,6 +1,7 @@
 from ..tensor import Tensor
-from .layer import Layer
+from .module import Layer
 from .. import functional as F
+
 
 class Dropout(Layer):
     def __init__(self, p):

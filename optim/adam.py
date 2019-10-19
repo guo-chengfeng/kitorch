@@ -29,14 +29,9 @@ class Adam(Optimizer):
         self.beta2 = betas[1]
         self.exp_avg = []
         self.exp_avg_sq = []
-        for layer_parameters in self.parameters:
-            exp_avg = []
-            exp_avg_sq = []
-            for para in layer_parameters:
-                exp_avg.append(np.zeros(para.shape))
-                exp_avg_sq.append(np.zeros(para.shape))
-            self.exp_avg.append(exp_avg)
-            self.exp_avg_sq.append(exp_avg_sq)
+        for para in self.parameters:
+            self.exp_avg.append(np.zeros(para.shape))
+            self.exp_avg_sq.append(np.zeros(para.shape))
 
     def step(self, epoch=None):
         if self.is_group_lr:
@@ -47,15 +42,14 @@ class Adam(Optimizer):
         self.times += 1
         bias = np.sqrt(1 - self.beta2 ** self.times) / (1 - self.beta1 ** self.times)
         lr = bias * lr
-        for _para, _exp_avg, _exp_avg_sq, in zip(self.parameters, self.exp_avg, self.exp_avg_sq):
-            for para, exp_avg, exp_avg_sq in zip(_para, _exp_avg, _exp_avg_sq):
-                grad = para.grad.data
-                exp_avg *= self.beta1
-                exp_avg += (1 - self.beta1) * grad
-                exp_avg_sq *= self.beta2
-                exp_avg_sq += (1 - self.beta2) * grad * grad
+        for para, exp_avg, exp_avg_sq in zip(self.parameters, self.exp_avg, self.exp_avg_sq):
+            grad = para.grad.data
+            exp_avg *= self.beta1
+            exp_avg += (1 - self.beta1) * grad
+            exp_avg_sq *= self.beta2
+            exp_avg_sq += (1 - self.beta2) * grad * grad
 
-                para.data -= lr * exp_avg / (self.eps + np.sqrt(exp_avg_sq))
+            para.data -= lr * exp_avg / (self.eps + np.sqrt(exp_avg_sq))
 
 
 

@@ -2,7 +2,7 @@ import numpy as np
 from .. import functional as F
 from ..tensor import Tensor
 from ..utils import rand
-from .layer import Layer
+from .module import Layer
 
 
 def to_pair(num):
@@ -22,24 +22,24 @@ class Conv2d(Layer):
         super(Conv2d, self).__init__()
         self.in_channel = in_channel
         self.out_channel = out_channel
-        self.kernel_size = kernel_size
+        self.kernel_size = to_pair(kernel_size)
         self.need_bias = bias
 
-        self.parameters = []
+        self._parameters = []
         kH, kW = to_pair(kernel_size)
         scale = 1.0 / np.sqrt(out_channel)
         self.weight = rand(out_channel, in_channel, kH, kW, requires_grad=True,
                            shift=-0.5, scale=scale)
-        self.parameters.append(self.weight)
+        self._parameters.append(self.weight)
 
         if bias:
             self.bias = rand(out_channel, requires_grad=True, shift=-0.5, scale=scale)
-            self.parameters.append(self.bias)
+            self._parameters.append(self.bias)
         else:
             self.bias = None
 
         self.stride = (1, 1) if stride is None else to_pair(stride)
-        self.bais = (0, 0) if padding is None else to_pair(padding)
+        self.padding = (0, 0) if padding is None else to_pair(padding)
 
     def forward(self, x: Tensor):
         return F.conv2d(x, self.weight, self.bias, stride=self.stride, padding=self.padding)
@@ -66,15 +66,15 @@ class ConvTranspose2d(Layer):
         super(ConvTranspose2d, self).__init__()
         self.in_channel = in_channel
         self.out_channel = out_channel
-        self.kernel_size = kernel_size
+        self.kernel_size = to_pair(kernel_size)
 
-        self.parameters = []
+        self._parameters = []
 
         kH, kW = to_pair(kernel_size)
         scale = 1.0 / np.sqrt(out_channel)
         self.weight = rand(out_channel, in_channel, kH, kW, requires_grad=True,
                            shift=-0.5, scale=scale)
-        self.parameters.append(self.weight)
+        self._parameters.append(self.weight)
 
         self.stride = (1, 1) if stride is None else to_pair(stride)
         self.bais = (0, 0) if padding is None else to_pair(padding)

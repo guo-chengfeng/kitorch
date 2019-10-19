@@ -1,7 +1,7 @@
 from typing import Optional, List, Tuple
 from ..tensor import Edge, Tensor
 from ..utils import rand, zeros, zeros_like
-from . import Layer
+from .module import Layer
 import numpy as np
 
 step_in = zeros(1, requires_grad=True)
@@ -19,7 +19,7 @@ def sigmoid(data):
 class RNNBase(Layer):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True, dropout=0, bidirectional=False, mode="RNN"):
         super(RNNBase, self).__init__()
-        self.parameters = []
+        self._parameters= []
         self.hidden_size = hidden_size
         self.need_bias = bias
         self.num_layers = num_layers

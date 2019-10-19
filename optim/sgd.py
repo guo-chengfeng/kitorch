@@ -1,4 +1,4 @@
-from .optimizer import Optimizer,learn_rate
+from .optimizer import Optimizer, learn_rate
 import numpy as np
 
 
@@ -44,11 +44,8 @@ class SGD(Optimizer):
             self.beta = momentum
             self.need_momentum = True
             self.para_momentum = []
-            for layer_parameters in self.parameters:
-                layer_para_momentum = []
-                for para in layer_parameters:
-                    layer_para_momentum.append(np.zeros(para.shape))
-                self.para_momentum.append(layer_para_momentum)
+            for para in self.parameters:
+                self.para_momentum.append(np.zeros(para.shape))
 
     def step(self, epoch=None):
 
@@ -59,16 +56,14 @@ class SGD(Optimizer):
 
         # 动量SGD
         if self.need_momentum:
-            for layer_p,layer_m in zip(self.parameters,self.para_momentum):
-                for para,m in zip(layer_p,layer_m):
-                    m *= self.beta
-                    m -= lr * para.grad.data
-                    para.data += m
+            for para, m in zip(self.parameters, self.para_momentum):
+                m *= self.beta
+                m -= lr * para.grad.data
+                para.data += m
         else:
             # 标准mini-batch SGD
-            for layer_parameters in self.parameters:
-                for para in layer_parameters:
-                    # 也可以用 para -= lr * para.grad
-                    # 但是这样会产生一些中间Tensor
-                    # 另外，这样也不用考虑requires_grad的值了
-                    para.data -= lr * para.grad.data
+            for para in self.parameters:
+                # 也可以用 para -= lr * para.grad
+                # 但是这样会产生一些中间Tensor
+                # 另外，这样也不用考虑requires_grad的值了
+                para.data -= lr * para.grad.data

@@ -1,7 +1,7 @@
 from ..tensor import Tensor,swapaxes
 from ..utils import rand, zeros,stack
 from .. import functional as F
-from . import Layer
+from .module import Layer
 import numpy as np
 
 
@@ -9,7 +9,7 @@ class RNNBase(Layer):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
                  nonlinearity='tanh', batch_first=False, dropout=0, mode="RNN", ):
         super(RNNBase, self).__init__()
-        self.parameters = []
+        self._parameters= []
         self.hidden_size = hidden_size
         self.need_bias = bias
         self.num_layers = num_layers

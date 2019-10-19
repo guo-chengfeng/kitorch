@@ -30,14 +30,9 @@ class Adadelta(Optimizer):
         self.eps = eps
         self.grad_square = []
         self.acc_delta = []
-        for layer_parameters in self.parameters:
-            layer_grad_square = []
-            layer_acc_delta = []
-            for para in layer_parameters:
-                layer_grad_square.append(np.zeros(para.shape))
-                layer_acc_delta.append(np.zeros(para.shape))
-            self.grad_square.append(layer_grad_square)
-            self.acc_delta.append(layer_acc_delta)
+        for para in self.parameters:
+            self.grad_square.append(np.zeros(para.shape))
+            self.acc_delta.append(np.zeros(para.shape))
 
     def step(self, epoch=None):
         if self.is_group_lr:
@@ -45,14 +40,13 @@ class Adadelta(Optimizer):
         else:
             lr = self.lr[0]
 
-        for layer_para,layer_acc_delta, layer_grad_sq in zip(self.parameters,self.acc_delta,self.grad_square):
-            for para,acc_delta,grad_sq in zip(layer_para,layer_acc_delta,layer_grad_sq):
-                grad = para.grad.data
-                grad_sq *= self.beta
-                grad_sq += (1 - self.beta) * grad * grad
-                delta =  np.sqrt(acc_delta+self.eps)/np.sqrt( grad_sq+self.eps) * grad
-                para.data -= lr * delta
-                acc_delta *= self.beta
-                acc_delta += (1 - self.beta) * delta * delta
+        for para,acc_delta,grad_sq in zip(self.parameters,self.acc_delta,self.grad_square):
+            grad = para.grad.data
+            grad_sq *= self.beta
+            grad_sq += (1 - self.beta) * grad * grad
+            delta =  np.sqrt(acc_delta+self.eps)/np.sqrt( grad_sq+self.eps) * grad
+            para.data -= lr * delta
+            acc_delta *= self.beta
+            acc_delta += (1 - self.beta) * delta * delta
 
 

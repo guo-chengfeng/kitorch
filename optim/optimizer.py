@@ -1,20 +1,22 @@
 import numpy as np
+
+
 # 这个参数比较全 https://blog.csdn.net/u012328159/article/details/80311892
 #
 # https://www.jianshu.com/p/33eed2e1d357
 # https://www.cnblogs.com/callyblog/p/8299074.html
 
 class Optimizer():
-    def __init__(self,parameters):
+    def __init__(self, parameters):
         self.parameters = parameters
 
-    def step(self,*args):
+    def step(self, *args):
         raise NotImplementedError
 
     def zero_grad(self):
-        for layer_parameters in self.parameters:
-            for para in layer_parameters:
-                para.zero_grad()
+        for para in self.parameters:
+            para.zero_grad()
+
 
 def learn_rate(lr):
     """
@@ -28,4 +30,3 @@ def learn_rate(lr):
         return group_lr
     else:
         return np.array([lr])
-

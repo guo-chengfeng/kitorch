@@ -1,7 +1,7 @@
 import numpy as np
 from ..tensor import Tensor
 from ..utils import rand
-from .layer import Layer
+from .module import Layer
 
 
 class Linear(Layer):
@@ -27,15 +27,15 @@ class Linear(Layer):
         self.out_features = out_features
         self.need_bias = bias
 
-        self.parameters = []
+        self._parameters = []
         scale = 1.0 / np.sqrt(out_features)
         self.weight = rand(in_features, out_features, requires_grad=True,
                            shift=-0.5, scale=scale)
 
-        self.parameters.append(self.weight)
+        self._parameters.append(self.weight)
         if bias:
             self.bias = rand(out_features, requires_grad=True, shift=-0.5, scale=scale)
-            self.parameters.append(self.bias)
+            self._parameters.append(self.bias)
 
     def forward(self, x: Tensor):
         if self.bias:

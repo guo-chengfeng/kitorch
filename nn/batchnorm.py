@@ -1,6 +1,6 @@
 from ..utils import rand, zeros
-from ..tensor import Edge,Tensor
-from .layer import Layer
+from ..tensor import Edge, Tensor
+from .module import Layer
 import numpy as np
 
 
@@ -20,13 +20,13 @@ class BatchNorm(Layer):
 
         self.affine = affine
         self.eps = eps
-        self.parameters = []
+        self._parameters = []
         if self.affine:
             self.weight = rand(*shape, requires_grad=True)
             self.bias = zeros(*shape, requires_grad=True)
 
-            self.parameters.append(self.weight)
-            self.parameters.append(self.bias)
+            self._parameters.append(self.weight)
+            self._parameters.append(self.bias)
 
         else:
             self.weight = None
@@ -34,14 +34,19 @@ class BatchNorm(Layer):
 
         self.momentum = momentum
         self.track_running_stats = track_running_stats
+        self.running_data = [None, None]
+
         if self.track_running_stats:
-            self.running_mean = np.zeros(shape)
-            self.running_var = np.ones(shape)
-            self.num_batches_tracked = 0
-        else:
-            self.running_mean = None
-            self.running_var = None
-            self.num_batches_tracked = None
+            # running_mean,running_var
+            self.running_data = [np.zeros(shape), np.ones(shape)]
+
+    @property
+    def running_mean(self):
+        return self.running_data[0]
+
+    @property
+    def running_var(self):
+        return self.running_data[1]
 
     def forward(self, input):
         if self.training:
@@ -116,9 +121,8 @@ def l2normalizationTrain(input: Tensor, bn) -> Tensor:
 
     if bn.training and bn.track_running_stats:
         # 当利用样本估计全体数据的方差时，需要进行Bessel’s correction贝塞尔校正
-        bn.num_batches_tracked += 1
-        bn.running_mean = (1 - bn.momentum) * bn.running_mean + bn.momentum * mean
-        bn.running_var = (1 - bn.momentum) * bn.running_var + bn.momentum * var_0 / (num_unit - 1)
+        bn.running_data[0] = (1 - bn.momentum) * bn.running_mean + bn.momentum * mean
+        bn.running_data[1] = (1 - bn.momentum) * bn.running_var + bn.momentum * var_0 / (num_unit - 1)
 
     requires_grad = input.requires_grad
     depends_on = []
@@ -136,7 +140,7 @@ def l2normalizationTrain(input: Tensor, bn) -> Tensor:
 
 class BatchNorm1d(BatchNorm):
     def __init__(self, num_features, affine=True, momentum=0.1, eps=1e-5, track_running_stats=True):
-        super(BatchNorm1d, self).__init__(num_features,2, affine, momentum, eps, track_running_stats)
+        super(BatchNorm1d, self).__init__(num_features, 2, affine, momentum, eps, track_running_stats)
 
     def __repr__(self):
         string = "BatchNorm1d(num_features=%s, eps=%s" % (self.num_features, self.eps)
@@ -160,5 +164,3 @@ class BatchNorm2d(BatchNorm):
             string += ",momentum=%s,track_running_stats=True" % self.momentum
         string += ")"
         return string
-
-

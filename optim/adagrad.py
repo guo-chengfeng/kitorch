@@ -24,11 +24,8 @@ class Adagrad(Optimizer):
 
         self.eps = eps
         self.grad_square = []
-        for layer_parameters in self.parameters:
-            layer_grad_square = []
-            for para in layer_parameters:
-                layer_grad_square.append(np.zeros(para.shape))
-            self.grad_square.append(layer_grad_square)
+        for para in self.parameters:
+            self.grad_square.append(np.zeros(para.shape))
 
     def step(self, epoch=None):
         if self.is_group_lr:
@@ -36,8 +33,7 @@ class Adagrad(Optimizer):
         else:
             lr = self.lr[0]
 
-        for layer_para, layer_r in zip(self.parameters,self.grad_square):
-            for para, r in zip(layer_para,layer_r):
-                grad = para.grad.data
-                r += grad * grad
-                para.data -= lr*grad/(np.sqrt(r)+self.eps)
+        for para, r in zip(self.parameters,self.grad_square):
+            grad = para.grad.data
+            r += grad * grad
+            para.data -= lr*grad/(np.sqrt(r)+self.eps)

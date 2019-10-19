@@ -1,17 +1,18 @@
 from collections import OrderedDict
-from .layer import Layer
-from .. import tensor as mt
+from ..grad_mode import no_grad
 
 
 class NeuralNetwork(object):
     def __init__(self):
         self.training = True
+        self._parameters = []
         self._layers = OrderedDict()
 
     def __setattr__(self, key, value):
         object.__setattr__(self, key, value)
-        if isinstance(value, Layer):
+        if isinstance(value, NeuralNetwork):
             self._layers[key] = value
+            self._parameters += value.parameters()
 
     def __repr__(self):
         string = self.__class__.__name__ + "(\n"
@@ -24,17 +25,18 @@ class NeuralNetwork(object):
         raise NotImplementedError
 
     def __call__(self, *input):
-        return self.forward(*input)
+        if self.training:
+            return self.forward(*input)
+        else:
+            with no_grad():
+                return self.forward(*input)
 
     def parameters(self):
-        parameters = []
-        for layer in self._layers.values():
-            parameters.append(layer.parameters)
-        return parameters
+        return self._parameters
 
     def zero_grad(self):
-        for layer in self._layers.values():
-            layer.zero_grad()
+        for para in self._parameters:
+            para.zero_grad()
 
     def switch_mode(self, mode=True):
         """
@@ -60,3 +62,19 @@ class NeuralNetwork(object):
 
 
 Module = NeuralNetwork
+Layer = NeuralNetwork
+
+
+class Sequential(Module):
+    def __init__(self, *args):
+        super(Sequential, self).__init__()
+        for id, layer in enumerate(args):
+            self.__setattr__('layer_%s' % id, layer)
+            self.num_layers = id
+
+    def forward(self, input):
+        output = input
+        for layer in self._layers.values():
+            output = layer.forward(output)
+
+        return output
