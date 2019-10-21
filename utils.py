@@ -15,6 +15,14 @@ from typing import List
 from .tensor import Edge, Tensor
 
 
+def to_pair(num):
+    """convert a int to tuple of (int,int)"""
+
+    if isinstance(num, int):
+        return num, num
+    else:
+        return num
+
 class Timer:
     def __init__(self):
         self._tic = time.time()

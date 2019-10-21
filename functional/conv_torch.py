@@ -13,18 +13,10 @@ It is faster than conv_by_torch
 
 import numpy as np
 from ..tensor import Tensor, Edge
-from ..utils import zeros
+from ..utils import zeros, to_pair
 import torch
 
 step_in = zeros(1, requires_grad=True)
-
-
-def to_pair(num):
-    """convert a int to tuple of (int,int)"""
-    if isinstance(num, int):
-        return num, num
-    else:
-        return num
 
 
 # 开端一定padding

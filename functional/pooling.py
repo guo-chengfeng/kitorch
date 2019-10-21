@@ -1,8 +1,12 @@
 from ..tensor import Tensor, Edge, np
+from ..utils import to_pair
 
 
 # 类似于卷积
 def avgpool2d(inputs, kernel_size, padding=None):
+    kernel_size = to_pair(kernel_size)
+    padding = (0, 0) if padding is None else to_pair(padding)
+
     if padding:
         assert padding[0] <= kernel_size[0] / 2 and padding[1] <= kernel_size[
             1] / 2, "pad should be smaller than half of kernel size"
@@ -37,6 +41,9 @@ def Avgpool2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor
 
 
 def maxpool2d(inputs, kernel_size, padding=None):
+    kernel_size = to_pair(kernel_size)
+    padding = (0, 0) if padding is None else to_pair(padding)
+
     if padding:
         assert padding[0] <= kernel_size[0] / 2 and padding[1] <= kernel_size[
             1] / 2, "pad should be smaller than half of kernel size"

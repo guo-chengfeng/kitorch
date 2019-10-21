@@ -13,24 +13,16 @@ It is faster than conv_naive
 
 import numpy as np
 from ..tensor import Tensor, Edge
-from ..utils import zeros
+from ..utils import zeros, to_pair
 
 step_in = zeros(1, requires_grad=True)
-
-
-def bi_tuple(num):
-    """convert a int to tuple of (int,int)"""
-    if isinstance(num, int):
-        return num, num
-    else:
-        return num
 
 
 def get_im2col_indices(x_shape, kernel_height, kernel_width, padding=(0, 0), stride=(1, 1)):
     # First figure out what the size of the output should be
     N, C, H, W = x_shape
     assert (H + 2 * padding[0] - kernel_height) % stride[0] == 0
-    assert (W + 2 * padding[1] - kernel_height) % stride[1] == 0
+    assert (W + 2 * padding[1] - kernel_width) % stride[1] == 0
     out_height = int((H + 2 * padding[0] - kernel_height) / stride[0] + 1)
     out_width = int((W + 2 * padding[1] - kernel_width) / stride[1] + 1)
 
@@ -214,8 +206,8 @@ def Conv2dBackward(grad: 'Tensor', depends_on) -> 'Tensor':
 
 def conv2d(input: Tensor, weight: Tensor, bias=None, stride=None, padding=None) -> Tensor:
     requires_grad = input.requires_grad or weight.requires_grad
-    _stride = (1, 1) if stride is None else bi_tuple(stride)
-    _padding = (0, 0) if padding is None else bi_tuple(padding)
+    _stride = (1, 1) if stride is None else to_pair(stride)
+    _padding = (0, 0) if padding is None else to_pair(padding)
 
     if bias is not None:
         data, x_cols = conv2d_forward(input.data, weight.data, bias.data, _stride, _padding)
