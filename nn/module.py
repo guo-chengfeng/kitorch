@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from ..grad_mode import no_grad
-
+from ..utils import save_model,load_model
 
 class NeuralNetwork(object):
     def __init__(self):
@@ -59,6 +59,11 @@ class NeuralNetwork(object):
 
     def eval(self):
         self.switch_eval_mode()
+
+    def save(self,file_path):
+        save_model(self,file_path)
+
+
 
 
 Module = NeuralNetwork

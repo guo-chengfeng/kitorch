@@ -1,5 +1,5 @@
-from ..tensor import Tensor,swapaxes
-from ..utils import rand, zeros,stack
+from ..tensor import Tensor,swapaxes,stack
+from ..utils import rand, zeros
 from .. import functional as F
 from .module import Layer
 import numpy as np

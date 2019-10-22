@@ -892,3 +892,51 @@ def transpose(t: Tensor, axis1, axis2) -> 'Tensor':
         depends_on.append(Edge(t, [axes]))
 
     return Tensor(data, requires_grad, depends_on, grad_fn)
+
+
+def CatBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+    axis, index = args
+    length = t.shape[axis]
+    indices = [i for i in range(index * length, (index + 1) * length)]
+    return Tensor(grad.data.take(indices, axis) * np.ones_like(t.data))
+
+
+def cat(ts, axis=0):
+    assert isinstance(ts, (list, tuple)), \
+        "concat(): argument 'tensors' must be tuple or list of Tensors, not Tensor"
+
+    _data = [t.data for t in ts]
+    data = np.concatenate(_data, axis=axis)
+    requires_grad = False
+    depends_on = []
+    grad_on = CatBackward
+
+    for index, t in enumerate(ts):
+        requires_grad = requires_grad or t.requires_grad
+        if t.requires_grad:
+            depends_on.append(Edge(t, [axis, index]))
+
+    return Tensor(data, requires_grad, depends_on, grad_on)
+
+
+def StackBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+    axis, index = args
+    return Tensor(grad.data.take(index, axis))
+
+
+def stack(ts, axis=0):
+    assert isinstance(ts, (list, tuple)), \
+        "stack(): argument 'tensors' must be tuple or list of Tensors, not Tensor"
+
+    _data = [t.data for t in ts]
+    data = np.stack(_data, axis=axis)
+    requires_grad = False
+    depends_on = []
+    grad_on = StackBackward
+
+    for index, t in enumerate(ts):
+        requires_grad = requires_grad or t.requires_grad
+        if t.requires_grad:
+            depends_on.append(Edge(t, [axis, index]))
+
+    return Tensor(data, requires_grad, depends_on, grad_on)
