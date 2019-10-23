@@ -20,9 +20,9 @@ def avgpool2d(inputs, kernel_size, padding=None):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def Avgpool2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    kernel_size = other_args[0]
-    padding = other_args[1]
+def Avgpool2dBackward(output_grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    kernel_size = cache[0]
+    padding = cache[1]
     _data = ndarray_avgpool2d_backward(output_grad.data, kernel_size)
     if padding:
         pH = padding[0]
@@ -57,10 +57,10 @@ def maxpool2d(inputs, kernel_size, padding=None):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def Maxpool2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    max_idxs = other_args[0]
-    kernel_size = other_args[1]
-    padding = other_args[2]
+def Maxpool2dBackward(output_grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    max_idxs = cache[0]
+    kernel_size = cache[1]
+    padding = cache[2]
     _data = ndarray_maxpool2d_backward(output_grad.data, max_idxs, kernel_size)
     if padding:
         pH = padding[0]

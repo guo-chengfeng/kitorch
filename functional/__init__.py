@@ -5,7 +5,8 @@ except:
 
 from .dropout import dropout2d, dropout
 from .pooling import maxpool2d, avgpool2d
-
+from ..tensor import Tensor,Edge
+from ..utils import zeros,rand
 from ..tensor import softmax, log_softmax, sigmoid, tanh, relu
 from .loss import nll_loss, cross_entropy, mse_loss
 

@@ -19,7 +19,7 @@ def sigmoid(data):
 class RNNBase(Layer):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True, dropout=0, bidirectional=False, mode="RNN"):
         super(RNNBase, self).__init__()
-        self._parameters= []
+        self._parameters = []
         self.hidden_size = hidden_size
         self.need_bias = bias
         self.num_layers = num_layers
@@ -51,20 +51,20 @@ class RNNBase(Layer):
             layer_input_size = input_size if layer == 0 else hidden_size
             weight = rand(layer_input_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
             self.weight_i.append(weight)
-            self.parameters.append(weight)
+            self._parameters.append(weight)
 
             weight = rand(hidden_size, gate_size, requires_grad=True, scale=scale, trimmean=True)
             self.weight_h.append(weight)
-            self.parameters.append(weight)
+            self._parameters.append(weight)
 
             if self.need_bias:
                 bias = rand(gate_size, requires_grad=True, scale=scale, trimmean=True)
-                self.parameters.append(bias)
+                self._parameters.append(bias)
             else:
                 bias = None
             self.bias.append(bias)
 
-        for para in self.parameters:
+        for para in self._parameters:
             para.grad = zeros_like(para)
 
         if mode == 'RNN':
@@ -157,8 +157,8 @@ def BasicRNNLayerForward(requires_grad: bool, need_bias: bool, w_i: Tensor, w_h:
 
 def RNNBackward(grad: Tensor, depends_on):
     edge = depends_on[0]
-    args = edge.args
-    backward_type, requires_grads, input, h0, hn, hn2, dropout_mask, self = args
+    cache = edge.cache
+    backward_type, requires_grads, input, h0, hn, hn2, dropout_mask, self = cache
     seq_len = len(hn[0])
     input_requires_grad, h0_requires_grad, w_requires_grad = requires_grads
     h0_grad = [None for _ in range(self.num_layers)]
@@ -378,8 +378,7 @@ def LSTMLayerForward(requires_grad: bool, need_bias: bool, w_i: Tensor, w_h: Ten
 
 def LSTMBackward(grad: Tensor, depends_on):
     edge = depends_on[0]
-    args = edge.args
-    backward_type, requires_grads, input, h0, c0, hn, d, dropout_mask, self = args
+    backward_type, requires_grads, input, h0, c0, hn, d, dropout_mask, self = edge.cache
     seq_len = len(hn[0])
     input_requires_grad, h0_requires_grad, c0_requires_grad, w_requires_grad = requires_grads
     h0_grad = [None for _ in range(self.num_layers)]
@@ -433,7 +432,6 @@ def LSTMLayerBackward(output_grad: Tensor, h_grad: Tensor, c_grad: Tensor,
                       hn: np.ndarray, d: Tuple, w_i: Tensor, w_h: Tensor, bias: Optional[Tensor], need_bias: bool,
                       input: np.ndarray, h0: np.ndarray, input_requires_grad, h0_requires_grad, c0_requires_grad,
                       w_requires_grad, seq_len: int, hidden_size: int) -> List:
-
     sz = hidden_size
     sz2 = hidden_size * 2
     sz3 = hidden_size * 3

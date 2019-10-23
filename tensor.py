@@ -4,7 +4,7 @@ import numpy as np
 
 class Edge(NamedTuple):
     tensor: 'Tensor'
-    args: List
+    cache: List
 
 
 Array = Union[float, int, np.ndarray]
@@ -108,7 +108,7 @@ class Tensor(TensorBase):
         if self.is_simple:
             for edge in self.depends_on:
                 tensor = edge.tensor
-                _grad_ = self.grad_fn(grad, tensor, edge.args)
+                _grad_ = self.grad_fn(grad, tensor, edge.cache)
                 tensor.backward(_grad_)
         else:
             if self.depends_on:
@@ -230,9 +230,9 @@ class Tensor(TensorBase):
         return transpose(self, axis1, axis2)
 
 
-def SilceBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+def SilceBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
     grad_data = np.zeros_like(t.data)
-    grad_data[args[0]] = grad.data
+    grad_data[cache[0]] = grad.data
     return Tensor(grad_data)
 
 
@@ -247,8 +247,8 @@ def slice(t: Tensor, idxs) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def LogSoftmaxBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    dim, data = args
+def LogSoftmaxBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    dim, data = cache
     _sum = np.sum(grad.data, axis=dim, keepdims=True)
     grad_data = grad.data - data * _sum
     return Tensor(grad_data)
@@ -273,8 +273,8 @@ def log_softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def SoftmaxBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    dim, data = args
+def SoftmaxBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    dim, data = cache
     _sum = (grad.data * data).sum(axis=dim, keepdims=True)
     grad_data = data * (grad.data - _sum)
     return Tensor(grad_data)
@@ -298,8 +298,8 @@ def softmax(t: 'Tensor', dim=1, deoverflow=True) -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def TanhBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    data = args[0]
+def TanhBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    data = cache[0]
     grad_data = grad.data * (1 - data * data)
     return Tensor(grad_data)
 
@@ -315,8 +315,8 @@ def tanh(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def SigmoidBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    data = args[0]
+def SigmoidBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    data = cache[0]
     grad_data = grad.data * data * (1 - data)
     return Tensor(grad_data)
 
@@ -332,8 +332,8 @@ def sigmoid(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ReluBackward(output_grad: 'Tensor', t: 'Tensor', other_args: []) -> 'Tensor':
-    data = other_args[0]
+def ReluBackward(output_grad: 'Tensor', t: 'Tensor', other_cache: []) -> 'Tensor':
+    data = other_cache[0]
     grad_data = np.zeros_like(data)
     grad_data[data > 0] = 1
     grad_data = output_grad.data * grad_data
@@ -352,8 +352,8 @@ def relu(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def SumBackWard(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
-    axis, keepdims = args
+def SumBackWard(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
+    axis, keepdims = cache
 
     shape = grad.shape
     if shape == () or shape == (1,):
@@ -382,8 +382,8 @@ def sum(var: Tensor, axis=None, keepdims=False) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def MeanBackWard(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
-    axis, keepdims = args
+def MeanBackWard(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
+    axis, keepdims = cache
     shape = grad.shape
     if shape == () or shape == (1,):
         return Tensor(grad.data / var.size * np.ones_like(var.data))
@@ -439,7 +439,7 @@ def reduce_grad(grad_data: np.ndarray, res_shape: tuple, var_shape: tuple) -> np
     return grad_data
 
 
-def AddBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
+def AddBackward(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
     grad_data = grad.data * np.ones(grad.shape)
     res_shape = grad.shape
     var_shape = var.shape
@@ -493,8 +493,8 @@ def add(lhs: FIAT, rhs: FIAT):
         raise TypeError("add: unsupported operand type(s) for %s + %s " % (type(lhs), type(rhs)))
 
 
-def SubBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
-    is_right = True if args[0] == 'right' else False
+def SubBackward(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
+    is_right = True if cache[0] == 'right' else False
     grad_data = grad.data * np.ones(grad.shape)
     if is_right:
         grad_data *= -1
@@ -598,8 +598,8 @@ def mul(lhs: FIAT, rhs: FIAT):
 multiply = mul
 
 
-def MulBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
-    data = args[0]
+def MulBackward(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
+    data = cache[0]
     grad_data = grad.data * data
 
     res_shape = grad.shape
@@ -654,13 +654,13 @@ def divide(lhs: FIAT, rhs: FIAT):
         raise TypeError("divide: unsupported operand type(s) for %s / %s " % (type(lhs), type(rhs)))
 
 
-def DivideBackward(grad: 'Tensor', var: 'Tensor', args: List) -> 'Tensor':
-    is_right = True if args[0] == 'right' else False
+def DivideBackward(grad: 'Tensor', var: 'Tensor', cache: List) -> 'Tensor':
+    is_right = True if cache[0] == 'right' else False
     if is_right:
         #  - 1/x^2
-        grad_data = -grad.data * args[1] / (var.data ** 2)
+        grad_data = -grad.data * cache[1] / (var.data ** 2)
     else:
-        grad_data = grad.data / args[1]
+        grad_data = grad.data / cache[1]
 
     res_shape = grad.shape
     var_shape = var.shape
@@ -717,9 +717,9 @@ def matmul(lhs: Union['Tensor', np.ndarray], rhs: Union['Tensor', np.ndarray]) -
         raise TypeError("matmul: unsupported operand type(s) for %s @ %s " % (type(lhs), type(rhs)))
 
 
-def MatmulBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    is_right = True if args[0] == 'right' else False
-    data = args[1]
+def MatmulBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    is_right = True if cache[0] == 'right' else False
+    data = cache[1]
     dims = len(data.shape)
     if dims > 2:
         axes = [i for i in range(dims)]
@@ -743,7 +743,7 @@ def MatmulBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
     return Tensor(grad_data)
 
 
-def AbsBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+def AbsBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
     data = np.ones_like(t.data)
     data[t.data < 0] = -1
     return Tensor(grad.data * data)
@@ -760,8 +760,8 @@ def abs(t: Tensor) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def NormBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    order, reduction = args
+def NormBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    order, reduction = cache
     if order == 1:
         data = np.ones_like(t.data)
         data[t.data < 0] = -1
@@ -797,8 +797,8 @@ def norm(t: Tensor, order=2, reduction='sum'):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def PowerBackward(grad: 'Tensor', t: 'Tensor', args: []) -> 'Tensor':
-    pow = args[0]
+def PowerBackward(grad: 'Tensor', t: 'Tensor', cache: []) -> 'Tensor':
+    pow = cache[0]
     grad_data = grad.data * pow * np.power(t.data, pow - 1)
     return Tensor(grad_data)
 
@@ -814,7 +814,7 @@ def power(t: 'Tensor', pow: Scalar) -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def LogBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
+def LogBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
     return Tensor(grad.data / (t.data + 1e-16))
 
 
@@ -829,8 +829,8 @@ def log(t: Tensor) -> Tensor:
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ExpBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    return Tensor(grad.data * args[0])
+def ExpBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    return Tensor(grad.data * cache[0])
 
 
 def exp(t: 'Tensor') -> 'Tensor':
@@ -844,7 +844,7 @@ def exp(t: 'Tensor') -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def ReshapeBackward(grad: 'Tensor', t: 'Tensor', args: list) -> 'Tensor':
+def ReshapeBackward(grad: 'Tensor', t: 'Tensor', cache: list) -> 'Tensor':
     original_shape = t.shape
     return Tensor(grad.data.reshape(original_shape))
 
@@ -860,8 +860,8 @@ def reshape(t: 'Tensor', newshape):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def SwapaxesBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    axis1, axis2 = args
+def SwapaxesBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    axis1, axis2 = cache
     return Tensor(np.swapaxes(grad.data, axis2, axis1))
 
 
@@ -876,8 +876,8 @@ def swapaxes(t: 'Tensor', axis1, axis2):
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def TransposeBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    return Tensor(np.transpose(grad.data, args[0]))
+def TransposeBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    return Tensor(np.transpose(grad.data, cache[0]))
 
 
 def transpose(t: Tensor, axis1, axis2) -> 'Tensor':
@@ -894,8 +894,8 @@ def transpose(t: Tensor, axis1, axis2) -> 'Tensor':
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def CatBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    axis, index = args
+def CatBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    axis, index = cache
     length = t.shape[axis]
     indices = [i for i in range(index * length, (index + 1) * length)]
     return Tensor(grad.data.take(indices, axis) * np.ones_like(t.data))
@@ -919,8 +919,8 @@ def cat(ts, axis=0):
     return Tensor(data, requires_grad, depends_on, grad_on)
 
 
-def StackBackward(grad: 'Tensor', t: 'Tensor', args: List) -> 'Tensor':
-    axis, index = args
+def StackBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
+    axis, index = cache
     return Tensor(grad.data.take(index, axis))
 
 

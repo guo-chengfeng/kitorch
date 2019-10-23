@@ -1,4 +1,4 @@
-from ..tensor import Tensor,swapaxes,stack
+from ..tensor import Tensor, swapaxes, stack
 from ..utils import rand, zeros
 from .. import functional as F
 from .module import Layer
@@ -9,7 +9,7 @@ class RNNBase(Layer):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
                  nonlinearity='tanh', batch_first=False, dropout=0, mode="RNN", ):
         super(RNNBase, self).__init__()
-        self._parameters= []
+        self._parameters = []
         self.hidden_size = hidden_size
         self.need_bias = bias
         self.num_layers = num_layers
@@ -44,17 +44,17 @@ class RNNBase(Layer):
             weight = rand(layer_input_size, gate_size, requires_grad=True, trimmean=True, scale=scale)
 
             self.weight_i.append(weight)
-            self.parameters.append(weight)
+            self._parameters.append(weight)
 
             weight = rand(hidden_size, gate_size, requires_grad=True, trimmean=True, scale=scale)
             self.weight_h.append(weight)
-            self.parameters.append(weight)
+            self._parameters.append(weight)
 
         if self.need_bias:
             for i in range(num_layers):
                 bias = rand(gate_size, requires_grad=True, trimmean=True, scale=scale)
                 self.bias.append(bias)
-                self.parameters.append(bias)
+                self._parameters.append(bias)
 
 
 class RNN(RNNBase):
@@ -156,9 +156,6 @@ class LSTM(RNNBase):
         else:
             cn = [zeros(batch_size, sz) for _ in range(self.num_layers)]
 
-
-
-
         for seq in range(seq_len):
             x = input[:, seq, :] if self.batch_first else input[seq, :, :]
 
@@ -172,7 +169,6 @@ class LSTM(RNNBase):
                 it = F.sigmoid(output_h[:, sz:2 * sz])
                 gt = F.tanh(output_h[:, 2 * sz:3 * sz])
                 ot = F.sigmoid(output_h[:, 3 * sz:])
-
 
                 cn[i] = ft * cn[i] + it * gt
                 x = ot * F.tanh(cn[i])

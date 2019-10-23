@@ -14,9 +14,7 @@ It is faster than conv
 """
 
 import numpy as np
-from tensor import Tensor, Edge
-from utils import zeros
-import time
+from .. import Tensor, Edge,zeros
 import torch
 
 step_in = zeros(1, requires_grad=True)
@@ -177,7 +175,7 @@ def conv2d_backward(dout, input_requires_grad, input_shape,
 
 def Conv2dBackward(grad: 'Tensor', depends_on) -> 'Tensor':
     edge = depends_on[0]
-    input, weight, bias, x_cols, stride, padding = edge.args
+    input, weight, bias, x_cols, stride, padding = edge.cache
     tensor_grad = []
     if bias is not None:
         tensor_grad.append((bias,

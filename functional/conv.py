@@ -184,7 +184,7 @@ def conv2d_backward(dout, input_requires_grad, input_shape,
 
 def Conv2dBackward(grad: 'Tensor', depends_on) -> 'Tensor':
     edge = depends_on[0]
-    input, weight, bias, x_cols, stride, padding = edge.args
+    input, weight, bias, x_cols, stride, padding = edge.cache
     tensor_grad = []
     if bias is not None:
         tensor_grad.append((bias,

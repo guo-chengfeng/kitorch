@@ -70,8 +70,8 @@ class BatchNorm(Layer):
         return string
 
 
-def L2NormalizationBackward(out_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    reduce_axis, num_unit, scale, m, y_hat = other_args
+def L2NormalizationBackward(out_grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    reduce_axis, num_unit, scale, m, y_hat = cache
     delta = scale * out_grad.data
     delta_1 = m * (delta - y_hat * ((delta * y_hat).sum(axis=reduce_axis, keepdims=True)))
     grad = delta_1 - delta_1.sum(axis=reduce_axis, keepdims=True) / num_unit

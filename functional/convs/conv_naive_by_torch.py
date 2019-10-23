@@ -1,15 +1,15 @@
 import numpy as np
-from tensor import Tensor, Edge
+from .. import Tensor, Edge
 import torch
 
 
-def Conv2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
-    backward_type = other_args[0]
+def Conv2dBackward(output_grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    backward_type = cache[0]
 
     if backward_type == 'inputs':
-        weight = other_args[1]
+        weight = cache[1]
         _data = _Conv2dBackward0(output_grad.data, weight.data)
-        padding = other_args[2]
+        padding = cache[2]
         if padding:
             pH = padding[0]
             pW = padding[1]
@@ -25,8 +25,9 @@ def Conv2dBackward(output_grad: 'Tensor', t: 'Tensor', other_args) -> 'Tensor':
         else:
             return Tensor(_data)
     elif backward_type == 'weight':
-        inputs = other_args[1]
-        padding = other_args[2]
+        inputs = cache[1]
+
+        padding = cache[2]
         if padding:
             pad_width = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
             data = np.lib.pad(inputs.data, pad_width, mode='constant', constant_values=0)

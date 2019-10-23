@@ -8,7 +8,7 @@ class Linear(Layer):
     """
     Applies a linear transformation to the incoming data: :math:`y = xA + b`
 
-    Args:
+    cache:
         in_features: size of each input sample
         out_features: size of each output sample
         bias: If set to ``False``, the layer will not learn an additive bias.

@@ -109,15 +109,15 @@ def conv2d_forward(x, w, b=None, stride=(1, 1), padding=((0, 0, 0), (0, 0, 0)), 
     return out.data.numpy()
 
 
-def Conv2dBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
-    btype = args[0]
+def Conv2dBackward(grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    btype = cache[0]
     if btype == 'bias':
         return Tensor(np.sum(grad.data, axis=(0, 2, 3)))
 
     grad_data = grad.data
     N, C, H, W = grad_data.shape
-    stride = args[2]
-    padding = args[3]
+    stride = cache[2]
+    padding = cache[3]
     pad00, pad01, unused0 = padding[0]
     pad10, pad11, unused1 = padding[1]
 
@@ -129,7 +129,7 @@ def Conv2dBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
         grad_data = _grad_data
 
     if btype == 'weight':
-        input = args[1]
+        input = cache[1]
         _, _, kH, kW = t.shape
         x_padded = input
         if pad00 or pad01 or pad10 or pad11:
@@ -147,7 +147,7 @@ def Conv2dBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
         return Tensor(dw)
 
     # btype == 'input'
-    weight = args[1]
+    weight = cache[1]
     _, _, kH, kW = weight.shape
     _weight = np.swapaxes(weight, axis1=0, axis2=1)
     _weight = np.flip(_weight, (2, 3)).copy()
@@ -231,8 +231,8 @@ def conv_transpose2d(input: Tensor, weight: Tensor, stride=1, padding=0, output_
     return Tensor(data, requires_grad, depends_on, grad_fn)
 
 
-def Conv2dTransposedBackward(grad: 'Tensor', t: 'Tensor', args) -> 'Tensor':
-    btype, x_or_w, stride, padding = args
+def Conv2dTransposedBackward(grad: 'Tensor', t: 'Tensor', cache) -> 'Tensor':
+    btype, x_or_w, stride, padding = cache
     if btype == 'input':
         x_grad = torch.conv1d(torch.tensor(grad.data),
                               torch.tensor(x_or_w), bias=None,
