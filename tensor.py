@@ -230,6 +230,11 @@ class Tensor(TensorBase):
         return transpose(self, axis1, axis2)
 
 
+
+# TODO slice　操作有bug
+# 比如　a = rand(4,5,requires_grad=True)
+#      b = a[1:3,[1,1,2]]
+# 此时计算的梯度是错误的，重复的下表没有累加
 def SilceBackward(grad: 'Tensor', t: 'Tensor', cache: List) -> 'Tensor':
     grad_data = np.zeros_like(t.data)
     grad_data[cache[0]] = grad.data

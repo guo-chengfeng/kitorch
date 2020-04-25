@@ -1,5 +1,5 @@
-#
-# 控制是否记录反向传播
+# Controls whether gradients are recorded
+# in no_grad() environment, gradients are not recorded
 
 import functools
 from .tensor import TensorBase
@@ -20,3 +20,5 @@ class no_grad(object):
                 return func(*args, **kwargs)
 
         return decorate_no_grad
+
+
